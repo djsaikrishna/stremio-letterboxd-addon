@@ -96,3 +96,16 @@ export async function getTmdbExternalIds(
   const url = `${TMDB_BASE_URL}/movie/${tmdbId}/external_ids?api_key=${apiKey}`;
   return tmdbFetch<TmdbExternalIds>(url);
 }
+
+export interface TmdbMovieDetails {
+  adult: boolean;
+  poster_path: string | null;
+}
+
+export async function getTmdbMovieDetails(
+  tmdbId: number,
+  apiKey: string,
+): Promise<TmdbMovieDetails> {
+  const url = `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`;
+  return tmdbFetch<TmdbMovieDetails>(url);
+}

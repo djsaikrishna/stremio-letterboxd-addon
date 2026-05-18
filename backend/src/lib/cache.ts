@@ -223,6 +223,16 @@ export const tmdbToImdbCache = createCache<string>({
   ttl: 7 * 24 * 60 * 60 * 1000, // 7 days
 });
 
+// TMDB ID → adult flag + poster path (permanent data)
+export interface TmdbAdultInfo {
+  adult: boolean;
+  posterPath: string | null;
+}
+export const tmdbAdultCache = createCache<TmdbAdultInfo>({
+  maxSize: 500,
+  ttl: 7 * 24 * 60 * 60 * 1000, // 7 days — adult status never changes
+});
+
 // Track cache keys per user for efficient invalidation (LRU doesn't support prefix scan)
 const userCatalogKeys = new Map<string, Set<string>>();
 

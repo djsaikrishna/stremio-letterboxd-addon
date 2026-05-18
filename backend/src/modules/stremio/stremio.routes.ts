@@ -150,7 +150,11 @@ export async function stremioRoutes(app: FastifyInstance) {
 
       try {
         const parsed = new URL(url);
-        if (!parsed.hostname.endsWith('.ltrbxd.com') && !parsed.hostname.endsWith('.letterboxd.com')) {
+        const allowed =
+          parsed.hostname.endsWith('.ltrbxd.com') ||
+          parsed.hostname.endsWith('.letterboxd.com') ||
+          parsed.hostname === 'image.tmdb.org';
+        if (!allowed) {
           return reply.status(400).send({ error: 'Invalid poster URL' });
         }
       } catch {
