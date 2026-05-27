@@ -27,8 +27,8 @@ export function DisplayOptionsSection(props: DisplayOptionsProps) {
         <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between rounded-lg bg-zinc-800/35 px-3.5 py-3">
             <div>
-              <p className="text-[13px] font-medium text-white">Poster Ratings</p>
-              <p className="mt-0.5 text-[11px] text-zinc-500">Show Letterboxd ratings on poster images</p>
+              <p className="text-[13px] font-medium text-white">Show Letterboxd Ratings</p>
+              <p className="mt-0.5 text-[11px] text-zinc-500">On posters and in stream info</p>
             </div>
             <Toggle
               enabled={props.showRatings}
@@ -62,7 +62,7 @@ export function DisplayOptionsSection(props: DisplayOptionsProps) {
 
   const { preferences, onPreferencesChange } = props;
   const items = [
-    { key: "showRatings" as const, label: "Poster Ratings", description: "Show Letterboxd ratings on poster images", defaultOn: true },
+    { key: "showRatings" as const, label: "Show Letterboxd Ratings", description: "On posters and in stream info", defaultOn: true },
     { key: "showActions" as const, label: "Letterboxd Actions", description: "Show rate, watched, liked and watchlist buttons in Stremio", defaultOn: true },
     { key: "showReviews" as const, label: "Popular Reviews", description: "Show popular Letterboxd reviews on film pages", defaultOn: true },
     { key: "hideUnreleased" as const, label: "Hide Unreleased Films", description: "Hide films that haven't been released yet", defaultOn: false },

@@ -415,10 +415,12 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
   const removeExternalList = (listId: string) => {
     const catId = `letterboxd-list-${listId}`;
     const hasVariants = catalogHasVariants(catId);
+    // Always strip the base catalog from the order; keep orphan variants when they exist
+    // (backend resolves orphan variants via templateMap, so removing the base entry is safe).
     const { newOrder, newVariants } = stripCatalogAndVariants(catId, getCatalogOrder(), getSortVariants(), hasVariants);
     if (isPublic) {
       const p = props as PublicModeProps;
-      if (!hasVariants) p.onRemovePublicList(listId);
+      p.onRemovePublicList(listId);
       p.onPublicSortVariantsChange(newVariants);
       p.onPublicCatalogOrderChange(newOrder);
       return;
@@ -426,9 +428,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
     const p = props as FullModeProps;
     p.onPreferencesChange({
       ...p.preferences,
-      externalLists: hasVariants
-        ? p.preferences.externalLists
-        : p.preferences.externalLists.filter((l) => l.id !== listId),
+      externalLists: p.preferences.externalLists.filter((l) => l.id !== listId),
       sortVariants: newVariants,
       catalogOrder: newOrder,
     });
@@ -437,10 +437,11 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
   const removeExternalWatchlist = (username: string) => {
     const catId = `letterboxd-watchlist-${username}`;
     const hasVariants = catalogHasVariants(catId);
+    // Always strip the base catalog from the order; keep orphan variants when they exist.
     const { newOrder, newVariants } = stripCatalogAndVariants(catId, getCatalogOrder(), getSortVariants(), hasVariants);
     if (isPublic) {
       const p = props as PublicModeProps;
-      if (!hasVariants) p.onRemovePublicExternalWatchlist(username);
+      p.onRemovePublicExternalWatchlist(username);
       p.onPublicSortVariantsChange(newVariants);
       p.onPublicCatalogOrderChange(newOrder);
       return;
@@ -448,9 +449,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
     const p = props as FullModeProps;
     p.onPreferencesChange({
       ...p.preferences,
-      externalWatchlists: hasVariants
-        ? (p.preferences.externalWatchlists || [])
-        : (p.preferences.externalWatchlists || []).filter((w) => w.username !== username),
+      externalWatchlists: (p.preferences.externalWatchlists || []).filter((w) => w.username !== username),
       sortVariants: newVariants,
       catalogOrder: newOrder,
     });

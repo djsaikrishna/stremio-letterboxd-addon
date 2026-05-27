@@ -1,0 +1,173 @@
+import { describe, it, expect } from 'vitest';
+import {
+  generatePublicManifest,
+  generateDynamicManifest,
+} from '../../../../src/modules/stremio/stremio.service.js';
+import type { PublicConfig } from '../../../../src/lib/config-encoding.js';
+import type { UserPreferences } from '../../../../src/db/repositories/user.repository.js';
+import type { UserList } from '../../../../src/modules/letterboxd/letterboxd.client.js';
+
+function basePublicCfg(overrides: Partial<PublicConfig> = {}): PublicConfig {
+  return {
+    c: { popular: true, top250: true },
+    l: [],
+    r: true,
+    ...overrides,
+  };
+}
+
+function basePreferences(overrides: Partial<UserPreferences> = {}): UserPreferences {
+  return {
+    catalogs: {
+      watchlist: true,
+      diary: true,
+      friends: true,
+      popular: true,
+      top250: true,
+      likedFilms: true,
+      recommended: true,
+    },
+    ownLists: [],
+    externalLists: [],
+    ...overrides,
+  };
+}
+
+describe('generatePublicManifest — custom names with sort variants', () => {
+  const listId = 'abc123';
+
+  it('applies a custom name to a variant catalog when overridden by its variant ID key', () => {
+    const cfg = basePublicCfg({
+      l: [listId],
+      s: { [`letterboxd-list-${listId}`]: ['shuffle'] },
+      n: { [`letterboxd-list-${listId}--shuffle`]: 'My Shuffled List' },
+    });
+    const listNames = new Map([[listId, 'Original List']]);
+
+    const manifest = generatePublicManifest(cfg, undefined, listNames);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === `letterboxd-list-${listId}--shuffle`,
+    );
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe('My Shuffled List');
+  });
+
+  it('propagates a parent rename into the default variant label when no variant override is set', () => {
+    const cfg = basePublicCfg({
+      l: [listId],
+      s: { [`letterboxd-list-${listId}`]: ['shuffle'] },
+      n: { [`letterboxd-list-${listId}`]: 'Renamed Parent' },
+    });
+    const listNames = new Map([[listId, 'Original List']]);
+
+    const manifest = generatePublicManifest(cfg, undefined, listNames);
+
+    const parent = manifest.catalogs.find((c) => c.id === `letterboxd-list-${listId}`);
+    const variant = manifest.catalogs.find(
+      (c) => c.id === `letterboxd-list-${listId}--shuffle`,
+    );
+    expect(parent?.name).toBe('Renamed Parent');
+    expect(variant?.name).toBe('Renamed Parent (Shuffle)');
+  });
+
+  it('uses the default template label when no custom name is set', () => {
+    const cfg = basePublicCfg({
+      l: [listId],
+      s: { [`letterboxd-list-${listId}`]: ['popular'] },
+    });
+    const listNames = new Map([[listId, 'Original List']]);
+
+    const manifest = generatePublicManifest(cfg, undefined, listNames);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === `letterboxd-list-${listId}--popular`,
+    );
+    expect(variant?.name).toBe('Original List (Popular)');
+  });
+
+  it('still renames the parent catalog when no variant exists', () => {
+    const cfg = basePublicCfg({
+      l: [listId],
+      n: { [`letterboxd-list-${listId}`]: 'Renamed Parent' },
+    });
+    const listNames = new Map([[listId, 'Original List']]);
+
+    const manifest = generatePublicManifest(cfg, undefined, listNames);
+
+    const parent = manifest.catalogs.find((c) => c.id === `letterboxd-list-${listId}`);
+    expect(parent?.name).toBe('Renamed Parent');
+  });
+});
+
+describe('generateDynamicManifest — custom names with sort variants', () => {
+  const user = { username: 'alice', displayName: 'Alice' };
+  const lists: UserList[] = [
+    { id: 'abc123', name: 'Original List', filmCount: 42 } as UserList,
+  ];
+
+  it('applies a custom name to a variant catalog when overridden by its variant ID key', () => {
+    const prefs = basePreferences({
+      ownLists: ['abc123'],
+      sortVariants: { 'letterboxd-list-abc123': ['shuffle'] },
+      catalogNames: { 'letterboxd-list-abc123--shuffle': 'My Shuffled List' },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-list-abc123--shuffle',
+    );
+    expect(variant?.name).toBe('My Shuffled List');
+  });
+
+  it('propagates a parent rename into the default variant label when no variant override is set', () => {
+    const prefs = basePreferences({
+      ownLists: ['abc123'],
+      sortVariants: { 'letterboxd-list-abc123': ['shuffle'] },
+      catalogNames: { 'letterboxd-list-abc123': 'Renamed Parent' },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const parent = manifest.catalogs.find((c) => c.id === 'letterboxd-list-abc123');
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-list-abc123--shuffle',
+    );
+    expect(parent?.name).toBe('Renamed Parent');
+    expect(variant?.name).toBe('Renamed Parent (Shuffle)');
+  });
+
+  it('uses the default template label when no custom name is set', () => {
+    const prefs = basePreferences({
+      ownLists: ['abc123'],
+      sortVariants: { 'letterboxd-list-abc123': ['popular'] },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-list-abc123--popular',
+    );
+    expect(variant?.name).toBe('Original List (Popular)');
+  });
+
+  it('renames orphan variants (parent removed) when parent is renamed via catalogNames', () => {
+    // Parent NOT in ownLists, but variant present -> orphan resolved via template map
+    const prefs = basePreferences({
+      ownLists: [],
+      sortVariants: { 'letterboxd-list-abc123': ['shuffle'] },
+      catalogNames: { 'letterboxd-list-abc123': 'Renamed Parent' },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const parent = manifest.catalogs.find((c) => c.id === 'letterboxd-list-abc123');
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-list-abc123--shuffle',
+    );
+    expect(parent).toBeUndefined();
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe('Renamed Parent (Shuffle)');
+  });
+});
