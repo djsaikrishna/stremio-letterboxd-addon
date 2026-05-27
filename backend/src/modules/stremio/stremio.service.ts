@@ -364,16 +364,18 @@ export function generatePublicManifest(
     }
   }
 
-  // Save all catalogs as templates before reordering (for orphan variant support)
-  const allPublicTemplates = [...catalogs];
-
-  // Apply custom catalog names from config
+  // Apply custom catalog names to parents BEFORE expansion so variants inherit the
+  // renamed parent in their generated name (e.g. "My List (Shuffle)").
   if (cfg.n) {
     for (const cat of catalogs) {
       const customName = cfg.n[cat.id];
       if (customName) cat.name = customName;
     }
   }
+
+  // Save all catalogs as templates before reordering (for orphan variant support).
+  // Templates capture the renamed parent so orphan variants also inherit the custom name.
+  const allPublicTemplates = [...catalogs];
 
   // Apply catalog ordering from config
   if (cfg.o?.length) {
@@ -388,6 +390,15 @@ export function generatePublicManifest(
 
   // Expand sort variants for public config
   catalogs = expandWithSortVariants(catalogs, cfg.s || {}, allPublicTemplates);
+
+  // Re-apply custom catalog names AFTER expansion so variant-specific overrides win
+  // (e.g. cfg.n["letterboxd-list-XXX--shuffle"] = "My Shuffled List").
+  if (cfg.n) {
+    for (const cat of catalogs) {
+      const customName = cfg.n[cat.id];
+      if (customName) cat.name = customName;
+    }
+  }
 
   if (cfg.q !== false) catalogs.push(SEARCH_CATALOG);
 
@@ -524,7 +535,8 @@ export function generateDynamicManifest(
       catalogs = [...ordered, ...remaining.values()];
     }
 
-    // Apply custom catalog names
+    // Apply custom catalog names to parents BEFORE expansion so variants inherit the
+    // renamed parent in their generated "<name> (<variant>)" label.
     if (preferences.catalogNames) {
       for (const cat of catalogs) {
         const customName = preferences.catalogNames[cat.id];
@@ -551,7 +563,25 @@ export function generateDynamicManifest(
       allTemplates.push({ type: 'movie', id: `letterboxd-contributor-${c.t}-${c.id}`, name: c.name, extra: [COMBINED_EXTRA, { name: 'skip', isRequired: false }] });
     }
   }
+  // Propagate parent renames to templates so orphan variants also inherit custom names.
+  if (preferences?.catalogNames) {
+    for (const tpl of allTemplates) {
+      const customName = preferences.catalogNames[tpl.id];
+      if (customName) tpl.name = customName;
+    }
+  }
+
   catalogs = expandWithSortVariants(catalogs, preferences?.sortVariants || {}, allTemplates);
+
+  // Re-apply custom catalog names AFTER expansion so variant-specific overrides win
+  // (e.g. catalogNames["letterboxd-list-XXX--shuffle"] = "My Shuffled List").
+  if (preferences?.catalogNames) {
+    for (const cat of catalogs) {
+      const customName = preferences.catalogNames[cat.id];
+      if (customName) cat.name = customName;
+    }
+  }
+
   if (preferences?.search !== false) catalogs.push(SEARCH_CATALOG);
 
   const exposeStreams =
