@@ -384,7 +384,8 @@ export async function buildLetterboxdStreams(
   client: AuthenticatedClient,
   imdbId: string,
   userId: string,
-  showActions: boolean = true
+  showActions: boolean = true,
+  showRatings: boolean = true
 ): Promise<LetterboxdStream[]> {
   logger.info({ imdbId, userId }, 'Building Letterboxd streams...');
 
@@ -403,30 +404,32 @@ export async function buildLetterboxdStreams(
   const streams: LetterboxdStream[] = [];
 
   // ── Stream 1: Rating & Status Info ──
-  const infoLines: string[] = [];
+  if (showRatings) {
+    const infoLines: string[] = [];
 
-  if (rating.communityRating !== null) {
-    const stars = formatStars(rating.communityRating, true);
-    const countStr = rating.communityRatings > 0 ? ` (${formatNumber(rating.communityRatings)} ratings)` : '';
-    infoLines.push(`${stars}  ${rating.communityRating.toFixed(1)}/5${countStr}`);
+    if (rating.communityRating !== null) {
+      const stars = formatStars(rating.communityRating, true);
+      const countStr = rating.communityRatings > 0 ? ` (${formatNumber(rating.communityRatings)} ratings)` : '';
+      infoLines.push(`${stars}  ${rating.communityRating.toFixed(1)}/5${countStr}`);
+    }
+
+    const statuses: string[] = [];
+    if (rating.watched) statuses.push('✓ Watched');
+    if (rating.liked) statuses.push('♥ Liked');
+    if (rating.inWatchlist) statuses.push('In Watchlist');
+    if (statuses.length > 0) infoLines.push(statuses.join('  ·  '));
+
+    if (rating.userRating !== null) {
+      infoLines.push(`Your rating: ${formatStars(rating.userRating, false)} ${rating.userRating.toFixed(1)}`);
+    }
+
+    streams.push({
+      name: 'Letterboxd',
+      description: infoLines.length > 0 ? infoLines.join('\n') : 'View on Letterboxd',
+      externalUrl: letterboxdUrl,
+      behaviorHints: { notWebReady: true, bingeGroup },
+    });
   }
-
-  const statuses: string[] = [];
-  if (rating.watched) statuses.push('✓ Watched');
-  if (rating.liked) statuses.push('♥ Liked');
-  if (rating.inWatchlist) statuses.push('In Watchlist');
-  if (statuses.length > 0) infoLines.push(statuses.join('  ·  '));
-
-  if (rating.userRating !== null) {
-    infoLines.push(`Your rating: ${formatStars(rating.userRating, false)} ${rating.userRating.toFixed(1)}`);
-  }
-
-  streams.push({
-    name: 'Letterboxd',
-    description: infoLines.length > 0 ? infoLines.join('\n') : 'View on Letterboxd',
-    externalUrl: letterboxdUrl,
-    behaviorHints: { notWebReady: true, bingeGroup },
-  });
 
   if (showActions) {
     // ── Stream 2: Rate action ──
