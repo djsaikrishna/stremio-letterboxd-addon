@@ -113,7 +113,7 @@ export async function generateRatedPoster(
 
   const result = await image
     .composite([{ input: Buffer.from(svgOverlay), top: 0, left: 0 }])
-    .jpeg({ quality: 85 })
+    .jpeg({ quality: 75 })
     .toBuffer();
 
   posterCache.set(cacheKey, result);

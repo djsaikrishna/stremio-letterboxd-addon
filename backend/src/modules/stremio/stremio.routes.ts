@@ -165,7 +165,7 @@ export async function stremioRoutes(app: FastifyInstance) {
         const imageBuffer = await generateRatedPoster(url, rating);
         return reply
           .header('Content-Type', 'image/jpeg')
-          .header('Cache-Control', 'public, max-age=3600')
+          .header('Cache-Control', 'public, max-age=2592000, immutable')
           .send(imageBuffer);
       } catch (error) {
         logger.error({ err: error, url, rating }, 'Failed to generate rated poster');
