@@ -100,7 +100,6 @@ describe('generatePublicManifest — custom names with sort variants', () => {
   });
 
   it('keeps orphan variants of a removed external list (regression #61)', () => {
-    // List removed from cfg.l, but its variant remains in cfg.s.
     const cfg = basePublicCfg({
       l: [],
       s: { [`letterboxd-list-${listId}`]: ['shuffle'] },
@@ -193,7 +192,6 @@ describe('generateDynamicManifest — custom names with sort variants', () => {
   });
 
   it('keeps orphan variants of a deleted external list (regression #61)', () => {
-    // External list fully removed from externalLists, but its variant remains in sortVariants.
     const prefs = basePreferences({
       externalLists: [],
       sortVariants: { 'letterboxd-list-ext42': ['shuffle'] },

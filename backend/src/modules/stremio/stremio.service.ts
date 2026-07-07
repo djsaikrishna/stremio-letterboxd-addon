@@ -152,12 +152,6 @@ function expandWithSortVariants(catalogs: StremioCatalog[], sortVariants: Record
   return result;
 }
 
-/**
- * Rebuild a catalog template from a sortVariants base id whose parent catalog
- * was removed from the config/preferences. The base id itself carries enough
- * information (list id, username, contributor) to reconstruct the template,
- * so orphan variants survive parent deletion (#61).
- */
 function synthesizeOrphanTemplate(
   baseId: string,
   extra: StremioCatalog['extra'],
@@ -423,8 +417,6 @@ export function generatePublicManifest(
   // Templates capture the renamed parent so orphan variants also inherit the custom name.
   const allPublicTemplates = [...catalogs];
 
-  // Synthesize templates for orphan variants whose parent is no longer in the config
-  // (deleted external list/watchlist or disabled base catalog) — see #61.
   if (cfg.s) {
     const templateIds = new Set(allPublicTemplates.map((t) => t.id));
     for (const baseId of Object.keys(cfg.s)) {
@@ -627,8 +619,6 @@ export function generateDynamicManifest(
     for (const c of preferences.contributors || []) {
       allTemplates.push({ type: 'movie', id: `letterboxd-contributor-${c.t}-${c.id}`, name: c.name, extra: [COMBINED_EXTRA, { name: 'skip', isRequired: false }] });
     }
-    // Synthesize templates for orphan variants whose parent was deleted from
-    // preferences (external list/watchlist/contributor removed) — see #61.
     if (preferences.sortVariants) {
       const templateIds = new Set(allTemplates.map((t) => t.id));
       for (const baseId of Object.keys(preferences.sortVariants)) {

@@ -359,8 +359,6 @@ export async function handlePublicCatalogRequest(
 
     let result: { metas: StremioMeta[] } | null = null;
 
-    // Orphan sort variants: the parent catalog may have been removed from the
-    // config while its variant remains in cfg.s — still a configured catalog (#61).
     const inSortVariants = (id: string): boolean => !!cfg.s?.[id]?.length;
 
     if (baseCatalogId === 'letterboxd-popular' && (cfg.c.popular || inSortVariants(baseCatalogId))) {

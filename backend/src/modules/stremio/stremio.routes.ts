@@ -239,8 +239,6 @@ export async function stremioRoutes(app: FastifyInstance) {
         }
       }
 
-      // Include orphan sort-variant parents (deleted from cfg but still referenced
-      // in cfg.s) so their names resolve for the synthesized templates (#61).
       const sortKeys = Object.keys(cfg.s || {});
       const orphanListIds = sortKeys
         .filter((k) => k.startsWith('letterboxd-list-'))
@@ -369,8 +367,6 @@ export async function stremioRoutes(app: FastifyInstance) {
       try {
         const lists = await fetchUserLists(user);
         const preferences = getUserPreferences(user);
-        // Resolve names for orphan sort-variant lists (parent deleted from
-        // preferences but variant still active) — see #61.
         const orphanListIds = Object.keys(preferences?.sortVariants || {})
           .filter((k) => k.startsWith('letterboxd-list-'))
           .map((k) => k.slice('letterboxd-list-'.length))
