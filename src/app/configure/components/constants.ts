@@ -14,6 +14,7 @@ export const SORT_VARIANT_OPTIONS: Array<{ key: string; label: string; descripti
   { key: 'shuffle', label: 'Shuffle', description: 'Random order each time' },
   { key: 'not-watched', label: 'Not Watched', description: 'Hide films you\'ve seen' },
   { key: 'popular', label: 'Popular', description: 'Sort by popularity' },
+  { key: 'rating', label: 'By Rating', description: 'Sort by average rating' },
 ];
 
 // Public mode: no auth → no "Not Watched" (requires user's watched history)

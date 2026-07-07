@@ -243,6 +243,20 @@ describe('generateDynamicManifest — custom names with sort variants', () => {
     expect(variant?.name).toBe("bob's Watchlist (Shuffle)");
   });
 
+  it('expands the rating sort variant on the watchlist (#64)', () => {
+    const prefs = basePreferences({
+      sortVariants: { 'letterboxd-watchlist': ['rating'] },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-watchlist--rating',
+    );
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe("Alice's Watchlist (By Rating)");
+  });
+
   it('renames orphan variants (parent removed) when parent is renamed via catalogNames', () => {
     // Parent NOT in ownLists, but variant present -> orphan resolved via template map
     const prefs = basePreferences({

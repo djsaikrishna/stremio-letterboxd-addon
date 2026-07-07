@@ -100,6 +100,7 @@ export const SORT_VARIANT_KEYS: Record<string, { label: string; sort?: string; s
   'shuffle': { label: 'Shuffle', special: 'shuffle' },
   'not-watched': { label: 'Not Watched', special: 'notWatched' },
   'popular': { label: 'Popular', sort: 'FilmPopularity' },
+  'rating': { label: 'By Rating', sort: 'AverageRatingHighToLow' },
 };
 
 function expandWithSortVariants(catalogs: StremioCatalog[], sortVariants: Record<string, string[]>, allCatalogTemplates?: StremioCatalog[]): StremioCatalog[] {
