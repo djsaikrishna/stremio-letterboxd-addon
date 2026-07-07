@@ -327,8 +327,8 @@ export async function getFilmRatingData(
 // ============================================================================
 
 /**
- * Format a numeric rating as stars (e.g., 3.5 -> "★★★⯪☆", 4 -> "★★★★☆")
- * Uses: ★ (full), ⯪ (half), ☆ (empty)
+ * Format a numeric rating as stars (e.g., 3.5 -> "★★★½☆", 4 -> "★★★★☆")
+ * Uses: ★ (full), ½ (half), ☆ (empty)
  */
 function formatStars(rating: number, showEmpty: boolean = true): string {
   const fullStars = Math.floor(rating);
@@ -340,7 +340,7 @@ function formatStars(rating: number, showEmpty: boolean = true): string {
 
   let stars = '★'.repeat(actualFull);
   if (hasHalf && !roundUp) {
-    stars += '⯪';
+    stars += '½';
   }
   if (showEmpty) {
     stars += '☆'.repeat(emptyStars);

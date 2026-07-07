@@ -98,6 +98,45 @@ describe('generatePublicManifest — custom names with sort variants', () => {
     const parent = manifest.catalogs.find((c) => c.id === `letterboxd-list-${listId}`);
     expect(parent?.name).toBe('Renamed Parent');
   });
+
+  it('keeps orphan variants of a removed external list (regression #61)', () => {
+    const cfg = basePublicCfg({
+      l: [],
+      s: { [`letterboxd-list-${listId}`]: ['shuffle'] },
+    });
+    const listNames = new Map([[listId, 'Original List']]);
+
+    const manifest = generatePublicManifest(cfg, undefined, listNames);
+
+    const parent = manifest.catalogs.find((c) => c.id === `letterboxd-list-${listId}`);
+    const variant = manifest.catalogs.find(
+      (c) => c.id === `letterboxd-list-${listId}--shuffle`,
+    );
+    expect(parent).toBeUndefined();
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe('Original List (Shuffle)');
+  });
+
+  it('keeps orphan variants of a disabled base catalog (regression #61)', () => {
+    const cfg = basePublicCfg({
+      u: 'alice',
+      c: { popular: false, top250: false, watchlist: false },
+      s: { 'letterboxd-watchlist': ['shuffle'], 'letterboxd-popular': ['shuffle'] },
+    });
+
+    const manifest = generatePublicManifest(cfg, 'Alice');
+
+    expect(manifest.catalogs.find((c) => c.id === 'letterboxd-watchlist')).toBeUndefined();
+    expect(manifest.catalogs.find((c) => c.id === 'letterboxd-popular')).toBeUndefined();
+    const watchlistVariant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-watchlist--shuffle',
+    );
+    const popularVariant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-popular--shuffle',
+    );
+    expect(watchlistVariant?.name).toBe("Alice's Watchlist (Shuffle)");
+    expect(popularVariant?.name).toBe('Popular This Week (Shuffle)');
+  });
 });
 
 describe('generateDynamicManifest — custom names with sort variants', () => {
@@ -150,6 +189,70 @@ describe('generateDynamicManifest — custom names with sort variants', () => {
       (c) => c.id === 'letterboxd-list-abc123--popular',
     );
     expect(variant?.name).toBe('Original List (Popular)');
+  });
+
+  it('keeps orphan variants of a deleted external list (regression #61)', () => {
+    const prefs = basePreferences({
+      externalLists: [],
+      sortVariants: { 'letterboxd-list-ext42': ['shuffle'] },
+    });
+    const orphanListNames = new Map([['ext42', 'Horror Classics']]);
+
+    const manifest = generateDynamicManifest(user, lists, prefs, orphanListNames);
+
+    const parent = manifest.catalogs.find((c) => c.id === 'letterboxd-list-ext42');
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-list-ext42--shuffle',
+    );
+    expect(parent).toBeUndefined();
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe('Horror Classics (Shuffle)');
+  });
+
+  it('applies a parent rename to orphan variants of a deleted external list', () => {
+    const prefs = basePreferences({
+      externalLists: [],
+      sortVariants: { 'letterboxd-list-ext42': ['shuffle'] },
+      catalogNames: { 'letterboxd-list-ext42': 'My Horror List' },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-list-ext42--shuffle',
+    );
+    expect(variant?.name).toBe('My Horror List (Shuffle)');
+  });
+
+  it('keeps orphan variants of a deleted external watchlist (regression #61)', () => {
+    const prefs = basePreferences({
+      externalWatchlists: [],
+      sortVariants: { 'letterboxd-watchlist-bob': ['shuffle'] },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const parent = manifest.catalogs.find((c) => c.id === 'letterboxd-watchlist-bob');
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-watchlist-bob--shuffle',
+    );
+    expect(parent).toBeUndefined();
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe("bob's Watchlist (Shuffle)");
+  });
+
+  it('expands the rating sort variant on the watchlist (#64)', () => {
+    const prefs = basePreferences({
+      sortVariants: { 'letterboxd-watchlist': ['rating'] },
+    });
+
+    const manifest = generateDynamicManifest(user, lists, prefs);
+
+    const variant = manifest.catalogs.find(
+      (c) => c.id === 'letterboxd-watchlist--rating',
+    );
+    expect(variant).toBeDefined();
+    expect(variant?.name).toBe("Alice's Watchlist (By Rating)");
   });
 
   it('renames orphan variants (parent removed) when parent is renamed via catalogNames', () => {

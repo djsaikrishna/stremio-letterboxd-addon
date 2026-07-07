@@ -100,6 +100,7 @@ export const SORT_VARIANT_KEYS: Record<string, { label: string; sort?: string; s
   'shuffle': { label: 'Shuffle', special: 'shuffle' },
   'not-watched': { label: 'Not Watched', special: 'notWatched' },
   'popular': { label: 'Popular', sort: 'FilmPopularity' },
+  'rating': { label: 'By Rating', sort: 'AverageRatingHighToLow' },
 };
 
 function expandWithSortVariants(catalogs: StremioCatalog[], sortVariants: Record<string, string[]>, allCatalogTemplates?: StremioCatalog[]): StremioCatalog[] {
@@ -149,6 +150,45 @@ function expandWithSortVariants(catalogs: StremioCatalog[], sortVariants: Record
   }
 
   return result;
+}
+
+function synthesizeOrphanTemplate(
+  baseId: string,
+  extra: StremioCatalog['extra'],
+  names: {
+    displayName?: string;
+    hasUsername?: boolean;
+    listNames?: Map<string, string>;
+    watchlistNames?: Map<string, string>;
+    contributorNames?: Map<string, string>;
+  }
+): StremioCatalog | null {
+  let name: string | null = null;
+  if (baseId === 'letterboxd-popular') {
+    name = 'Popular This Week';
+  } else if (baseId === 'letterboxd-top250') {
+    name = 'Top 250 Narrative Features';
+  } else if (baseId === 'letterboxd-watchlist') {
+    name = names.hasUsername ? (names.displayName ? `${names.displayName}'s Watchlist` : 'Watchlist') : null;
+  } else if (baseId === 'letterboxd-liked-films') {
+    name = names.hasUsername ? (names.displayName ? `${names.displayName}'s Liked Films` : 'Liked Films') : null;
+  } else if (baseId.startsWith('letterboxd-watchlist-')) {
+    const username = baseId.slice('letterboxd-watchlist-'.length);
+    name = `${names.watchlistNames?.get(username) || username}'s Watchlist`;
+  } else if (baseId.startsWith('letterboxd-list-')) {
+    const listId = baseId.slice('letterboxd-list-'.length);
+    name = names.listNames?.get(listId) || `List ${listId}`;
+  } else if (baseId.startsWith('letterboxd-contributor-')) {
+    const rest = baseId.slice('letterboxd-contributor-'.length);
+    const sep = rest.indexOf('-');
+    if (sep > 0) {
+      const t = rest.slice(0, sep);
+      const id = rest.slice(sep + 1);
+      name = names.contributorNames?.get(`${t}:${id}`) || `Contributor ${id}`;
+    }
+  }
+  if (!name) return null;
+  return { type: 'movie', id: baseId, name, extra };
 }
 
 const RECO_SORT_OPTIONS = [
@@ -377,6 +417,22 @@ export function generatePublicManifest(
   // Templates capture the renamed parent so orphan variants also inherit the custom name.
   const allPublicTemplates = [...catalogs];
 
+  if (cfg.s) {
+    const templateIds = new Set(allPublicTemplates.map((t) => t.id));
+    for (const baseId of Object.keys(cfg.s)) {
+      if (templateIds.has(baseId)) continue;
+      const synthesized = synthesizeOrphanTemplate(
+        baseId,
+        [PUBLIC_COMBINED_EXTRA, { name: 'skip', isRequired: false }],
+        { displayName, hasUsername: !!cfg.u, listNames, watchlistNames, contributorNames },
+      );
+      if (!synthesized) continue;
+      const customName = cfg.n?.[baseId];
+      if (customName) synthesized.name = customName;
+      allPublicTemplates.push(synthesized);
+    }
+  }
+
   // Apply catalog ordering from config
   if (cfg.o?.length) {
     const remaining = new Map(catalogs.map((c) => [c.id, c]));
@@ -475,7 +531,8 @@ export function generateDynamicManifest(
     displayName?: string | null;
   },
   lists: UserList[],
-  preferences?: UserPreferences | null
+  preferences?: UserPreferences | null,
+  orphanListNames?: Map<string, string>
 ): StremioManifest {
   const displayName = user.displayName || user.username;
   const baseCatalogs = getBaseCatalogs(displayName);
@@ -561,6 +618,18 @@ export function generateDynamicManifest(
     }
     for (const c of preferences.contributors || []) {
       allTemplates.push({ type: 'movie', id: `letterboxd-contributor-${c.t}-${c.id}`, name: c.name, extra: [COMBINED_EXTRA, { name: 'skip', isRequired: false }] });
+    }
+    if (preferences.sortVariants) {
+      const templateIds = new Set(allTemplates.map((t) => t.id));
+      for (const baseId of Object.keys(preferences.sortVariants)) {
+        if (templateIds.has(baseId)) continue;
+        const synthesized = synthesizeOrphanTemplate(
+          baseId,
+          [COMBINED_EXTRA, { name: 'skip', isRequired: false }],
+          { listNames: orphanListNames },
+        );
+        if (synthesized) allTemplates.push(synthesized);
+      }
     }
   }
   // Propagate parent renames to templates so orphan variants also inherit custom names.

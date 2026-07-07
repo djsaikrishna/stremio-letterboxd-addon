@@ -359,21 +359,23 @@ export async function handlePublicCatalogRequest(
 
     let result: { metas: StremioMeta[] } | null = null;
 
-    if (baseCatalogId === 'letterboxd-popular' && cfg.c.popular) {
+    const inSortVariants = (id: string): boolean => !!cfg.s?.[id]?.length;
+
+    if (baseCatalogId === 'letterboxd-popular' && (cfg.c.popular || inSortVariants(baseCatalogId))) {
       trackEvent('catalog_popular', undefined);
       result = await fetchPopularCatalogPublic(skip, showRatings, sort, includeGenre, decade);
-    } else if (baseCatalogId === 'letterboxd-top250' && cfg.c.top250) {
+    } else if (baseCatalogId === 'letterboxd-top250' && (cfg.c.top250 || inSortVariants(baseCatalogId))) {
       trackEvent('catalog_top250', undefined);
       result = await fetchTop250CatalogPublic(skip, showRatings, sort, includeGenre, decade);
-    } else if (baseCatalogId === 'letterboxd-watchlist' && cfg.u && cfg.c.watchlist && memberId) {
+    } else if (baseCatalogId === 'letterboxd-watchlist' && cfg.u && (cfg.c.watchlist || inSortVariants(baseCatalogId)) && memberId) {
       trackEvent('catalog_watchlist', undefined);
       result = await fetchWatchlistCatalogPublic(memberId, skip, showRatings, sort, includeGenre, decade);
-    } else if (baseCatalogId === 'letterboxd-liked-films' && cfg.u && cfg.c.likedFilms && memberId) {
+    } else if (baseCatalogId === 'letterboxd-liked-films' && cfg.u && (cfg.c.likedFilms || inSortVariants(baseCatalogId)) && memberId) {
       trackEvent('catalog_liked', undefined);
       result = await fetchLikedFilmsCatalogPublic(memberId, skip, showRatings, sort, includeGenre, decade);
     } else if (baseCatalogId.startsWith('letterboxd-watchlist-')) {
       const username = baseCatalogId.replace('letterboxd-watchlist-', '');
-      if (cfg.w?.includes(username)) {
+      if (cfg.w?.includes(username) || inSortVariants(baseCatalogId)) {
         trackEvent('catalog_watchlist', undefined, { externalUsername: username });
         const extMemberId = await resolveMemberId(username);
         if (extMemberId) {
@@ -382,7 +384,7 @@ export async function handlePublicCatalogRequest(
       }
     } else if (baseCatalogId.startsWith('letterboxd-list-')) {
       const listId = baseCatalogId.replace('letterboxd-list-', '');
-      if (cfg.l.includes(listId)) {
+      if (cfg.l.includes(listId) || inSortVariants(baseCatalogId)) {
         const listName = listNameCache.get(listId);
         trackEvent('catalog_list', undefined, { listId, ...(listName && { listName }) });
         result = await fetchListCatalogPublic(listId, skip, showRatings, sort, includeGenre, decade);
@@ -392,7 +394,7 @@ export async function handlePublicCatalogRequest(
       if (contribMatch) {
         const kind = contribMatch[1] as 'd' | 'a' | 's';
         const contribId = contribMatch[2]!;
-        if (cfg.f?.some((f) => f.t === kind && f.id === contribId)) {
+        if (cfg.f?.some((f) => f.t === kind && f.id === contribId) || inSortVariants(baseCatalogId)) {
           trackEvent('catalog_list', undefined, { contribKind: kind, contribId });
           result = await fetchContributorCatalogPublic(contribId, kind, skip, showRatings, sort);
         }

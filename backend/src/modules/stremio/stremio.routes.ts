@@ -239,14 +239,25 @@ export async function stremioRoutes(app: FastifyInstance) {
         }
       }
 
-      const listNames = cfg.l.length > 0 ? await resolveListNames(cfg.l) : undefined;
+      const sortKeys = Object.keys(cfg.s || {});
+      const orphanListIds = sortKeys
+        .filter((k) => k.startsWith('letterboxd-list-'))
+        .map((k) => k.slice('letterboxd-list-'.length))
+        .filter((id) => !cfg.l.includes(id));
+      const allListIds = [...cfg.l, ...orphanListIds];
+      const listNames = allListIds.length > 0 ? await resolveListNames(allListIds) : undefined;
       const contributorNames = cfg.f?.length ? resolveContributorNames(cfg.f) : undefined;
 
+      const orphanWatchlistUsers = sortKeys
+        .filter((k) => k.startsWith('letterboxd-watchlist-'))
+        .map((k) => k.slice('letterboxd-watchlist-'.length));
+      const allWatchlistUsers = [...new Set([...(cfg.w || []), ...orphanWatchlistUsers])];
+
       let watchlistNames: Map<string, string> | undefined;
-      if (cfg.w && cfg.w.length > 0) {
+      if (allWatchlistUsers.length > 0) {
         watchlistNames = new Map<string, string>();
         await Promise.all(
-          cfg.w.map(async (username) => {
+          allWatchlistUsers.map(async (username) => {
             try {
               const member = await callWithAppToken((token) => rawGetMember(token, username));
               watchlistNames!.set(username, member.displayName || member.username);
@@ -356,10 +367,21 @@ export async function stremioRoutes(app: FastifyInstance) {
       try {
         const lists = await fetchUserLists(user);
         const preferences = getUserPreferences(user);
+        const orphanListIds = Object.keys(preferences?.sortVariants || {})
+          .filter((k) => k.startsWith('letterboxd-list-'))
+          .map((k) => k.slice('letterboxd-list-'.length))
+          .filter(
+            (id) =>
+              !preferences?.externalLists.some((e) => e.id === id) &&
+              !lists.some((l) => l.id === id),
+          );
+        const orphanListNames =
+          orphanListIds.length > 0 ? await resolveListNames(orphanListIds) : undefined;
         const manifest = generateDynamicManifest(
           { username: user.letterboxd_username, displayName: user.letterboxd_display_name },
           lists,
           preferences,
+          orphanListNames,
         );
         trackEvent('install', userId);
         logger.info(
