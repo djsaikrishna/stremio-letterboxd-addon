@@ -11,8 +11,11 @@ Watchlist, diary, friends, lists, ratings — all in one addon.
 
 [**Configure →**](https://stremboxd.com/configure) · [Website](https://stremboxd.com) · [FAQ](https://stremboxd.com/faq)
 
-<!-- Replace with an actual screenshot or GIF of the addon in Stremio -->
-<!-- ![Stremboxd in action](docs/preview.gif) -->
+<br />
+
+![Stremboxd — set up in 30 seconds](docs/preview.gif)
+
+<sub>Username → catalogs → drag to reorder → install.</sub>
 
 </div>
 
