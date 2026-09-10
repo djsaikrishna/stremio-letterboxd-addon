@@ -16,8 +16,8 @@ interface ApiEnvelope<T> {
   error?: { message?: string; code?: number };
 }
 
-async function getEnvelope<T>(url: string): Promise<ApiEnvelope<T>> {
-  const response = await fetch(url);
+async function getEnvelope<T>(url: string, signal?: AbortSignal): Promise<ApiEnvelope<T>> {
+  const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(`Stremio request failed with status ${response.status}`);
   }
@@ -45,9 +45,16 @@ export async function pollAuthKey(
   for (;;) {
     if (signal.aborted) throw new Error("Stremio linking aborted");
 
-    const envelope = await getEnvelope<{ authKey?: string }>(
-      `${LINK_API}/read?code=${encodeURIComponent(code)}`,
-    );
+    let envelope: ApiEnvelope<{ authKey?: string }>;
+    try {
+      envelope = await getEnvelope<{ authKey?: string }>(
+        `${LINK_API}/read?code=${encodeURIComponent(code)}`,
+        signal,
+      );
+    } catch (error) {
+      if (signal.aborted) throw new Error("Stremio linking aborted");
+      throw error;
+    }
     const authKey = envelope.result?.authKey;
     if (authKey) return authKey;
 

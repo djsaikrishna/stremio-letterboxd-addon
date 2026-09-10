@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { mswServer, LINK_API } from "../helpers/stremio-msw";
 import { createLinkCode, pollAuthKey } from "../../src/lib/stremio-sync";
 
@@ -96,5 +96,31 @@ describe("pollAuthKey", () => {
     controller.abort();
 
     await expect(promise).rejects.toThrow("aborted");
+  });
+
+  it("cancels an in-flight request when the caller aborts mid-poll", async () => {
+    let calls = 0;
+    mswServer.use(
+      http.get(`${LINK_API}/read`, async () => {
+        calls += 1;
+        await delay(50);
+        return HttpResponse.json({
+          error: { message: "Invalid or expired token", code: 101 },
+        });
+      }),
+    );
+
+    const controller = new AbortController();
+    const promise = pollAuthKey("EBZS", controller.signal, {
+      intervalMs: 1,
+      timeoutMs: 1000,
+    });
+
+    // Let the first request actually start before aborting mid-flight.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    controller.abort();
+
+    await expect(promise).rejects.toThrow("aborted");
+    expect(calls).toBe(1);
   });
 });
