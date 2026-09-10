@@ -13,7 +13,7 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: "Do I need a password?",
-        a: "No. Without a password the addon is stateless — your preferences are encoded in the URL and you get watchlist, liked films, popular, Top 250, and any public list. With your password the addon runs in full mode: your config is stored server-side and you unlock diary, friends activity, and actions (rate, like, add to watchlist). Changing settings without a password requires reinstalling the addon.",
+        a: "No. Without a password the addon is stateless: your preferences are encoded in the URL and you get watchlist, liked films, popular, Top 250, and any public list. With your password the addon runs in full mode: your config is stored server-side and you unlock diary, friends activity, and actions (rate, like, add to watchlist). Changing settings without a password requires reinstalling the addon.",
       },
       {
         q: "Is my password stored?",
@@ -38,11 +38,11 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: "What catalogs are available?",
-        a: "Depending on your setup, you get up to eight catalog types: Watchlist (films you want to see), Diary (your recently logged films), Liked Films (films you hearted), Friends Activity (what people you follow are watching), Popular This Week (trending on Letterboxd), Top 250 Narrative Features (Letterboxd's all-time chart), Recommendations (personalised picks — see below), and any custom lists you add. You can enable or disable each one individually.",
+        a: "Depending on your setup, you get up to eight catalog types: Watchlist (films you want to see), Diary (your recently logged films), Liked Films (films you hearted), Friends Activity (what people you follow are watching), Popular This Week (trending on Letterboxd), Top 250 Narrative Features (Letterboxd's all-time chart), Recommendations (personalised picks, see below), and any custom lists you add. You can enable or disable each one individually.",
       },
       {
         q: "What is the Watchlist catalog?",
-        a: "Your personal Letterboxd watchlist — the films you've marked to watch later. It must be set to Public in your Letterboxd privacy settings for the addon to read it.",
+        a: "Your personal Letterboxd watchlist: the films you've marked to watch later. It must be set to Public in your Letterboxd privacy settings for the addon to read it.",
       },
       {
         q: "What is the Diary catalog?",
@@ -58,7 +58,7 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: "What is Popular This Week?",
-        a: "The films that are generating the most activity on Letterboxd right now — logs, likes, and reviews combined. It updates every 24 hours and can be filtered by genre or decade.",
+        a: "The films that are generating the most activity on Letterboxd right now, counting logs, likes, and reviews. It updates every 24 hours and can be filtered by genre or decade.",
       },
       {
         q: "What is Top 250 Narrative Features?",
@@ -86,11 +86,11 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: "What are sort variants and how do I add them?",
-        a: "Sort variants create a separate, always-on catalog pre-set to a specific mode. There are three: Shuffle (random order every time — great for decision fatigue), Not Watched (your watchlist or a custom list filtered to films you haven't logged), and Popular (sorted by all-time popularity). In the configuration, expand any catalog and toggle the variants you want. Each active variant appears as its own catalog in Stremio named e.g. \"My Watchlist (Shuffle)\".",
+        a: "Sort variants create a separate, always-on catalog pre-set to a specific mode. There are three: Shuffle (random order every time, great for decision fatigue), Not Watched (your watchlist or a custom list filtered to films you haven't logged), and Popular (sorted by all-time popularity). In the configuration, expand any catalog and toggle the variants you want. Each active variant appears as its own catalog in Stremio named e.g. \"My Watchlist (Shuffle)\".",
       },
       {
         q: "Can I reorder or rename catalogs?",
-        a: "Yes. In the configuration, drag any catalog card to reorder it — the order is reflected in Stremio. Click the pencil icon on any card to rename it. Renaming is cosmetic only and doesn't change what the catalog contains.",
+        a: "Yes. In the configuration, drag any catalog card to reorder it, and the order is reflected in Stremio. Click the pencil icon on any card to rename it. Renaming is cosmetic only and doesn't change what the catalog contains.",
       },
     ],
   },
@@ -107,7 +107,7 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: "I changed my settings but nothing updated",
-        a: "Without a password, changes require reinstalling the addon — the config is encoded in the URL so Stremio still uses the old one. When logged in, changes are stored server-side and apply on the next catalog refresh.",
+        a: "Without a password, changes require reinstalling the addon, because the config is encoded in the URL so Stremio still uses the old one. When logged in, changes are stored server-side and apply on the next catalog refresh.",
       },
       {
         q: "My diary or friends feed is outdated",

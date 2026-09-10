@@ -4,7 +4,7 @@ import { SECTIONS } from "./data";
 export const metadata: Metadata = {
   title: "FAQ",
   description:
-    "Answers to common questions about installing and using Stremboxd — the Letterboxd addon for Stremio. Installation, features, troubleshooting, and privacy.",
+    "Answers to common questions about installing and using Stremboxd, the Letterboxd addon for Stremio. Installation, features, troubleshooting, and privacy.",
   alternates: { canonical: "/faq" },
   openGraph: {
     title: "Stremboxd FAQ",
