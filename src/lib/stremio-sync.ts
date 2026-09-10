@@ -62,3 +62,30 @@ export async function pollAuthKey(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
+
+export const AUTH_KEY_STORAGE_KEY = "configure:stremio-auth-key";
+
+export function readAuthKey(): string | null {
+  try {
+    return localStorage.getItem(AUTH_KEY_STORAGE_KEY);
+  } catch {
+    // Private mode or blocked storage: behave as if no account was linked.
+    return null;
+  }
+}
+
+export function storeAuthKey(key: string): void {
+  try {
+    localStorage.setItem(AUTH_KEY_STORAGE_KEY, key);
+  } catch {
+    // Linking still works for this session, it just will not be remembered.
+  }
+}
+
+export function clearAuthKey(): void {
+  try {
+    localStorage.removeItem(AUTH_KEY_STORAGE_KEY);
+  } catch {
+    // Nothing to clear when storage is unavailable.
+  }
+}
