@@ -805,7 +805,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
               >
                 buy me a coffee ☕
               </a>{" "}
-              if you'd like to help keep it running.
+              if you&apos;d like to help keep it running.
             </p>
           </div>
         </div>
