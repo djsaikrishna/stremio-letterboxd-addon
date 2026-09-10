@@ -1,4 +1,6 @@
 const LINK_API = "https://link.stremio.com/api/v2";
+const STREMIO_API = "https://api.strem.io/api";
+const AUTH_ERROR_CODES = new Set([1, 101]);
 
 export interface LinkCode {
   code: string;
@@ -11,9 +13,17 @@ export interface PollOptions {
   timeoutMs?: number;
 }
 
+export type SyncResult = "synced" | "not-installed" | "unauthorized";
+
 interface ApiEnvelope<T> {
   result?: T;
   error?: { message?: string; code?: number };
+}
+
+interface AddonDescriptor {
+  transportUrl: string;
+  manifest: unknown;
+  flags?: unknown;
 }
 
 async function getEnvelope<T>(url: string, signal?: AbortSignal): Promise<ApiEnvelope<T>> {
@@ -22,6 +32,66 @@ async function getEnvelope<T>(url: string, signal?: AbortSignal): Promise<ApiEnv
     throw new Error(`Stremio request failed with status ${response.status}`);
   }
   return (await response.json()) as ApiEnvelope<T>;
+}
+
+async function postEnvelope<T>(path: string, payload: unknown): Promise<ApiEnvelope<T>> {
+  const response = await fetch(`${STREMIO_API}/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`Stremio request failed with status ${response.status}`);
+  }
+  return (await response.json()) as ApiEnvelope<T>;
+}
+
+export async function syncAddon(authKey: string, manifestUrl: string): Promise<SyncResult> {
+  const collection = await postEnvelope<{ addons: AddonDescriptor[] }>("addonCollectionGet", {
+    authKey,
+    update: true,
+  });
+
+  if (collection.error) {
+    if (AUTH_ERROR_CODES.has(collection.error.code ?? -1)) {
+      clearAuthKey();
+      return "unauthorized";
+    }
+    throw new Error(collection.error.message ?? "Could not read the Stremio addon collection");
+  }
+
+  const addons = collection.result?.addons;
+  // Guard: never write back a collection we did not fully read. An empty or
+  // malformed read would otherwise wipe every addon on the account.
+  if (!Array.isArray(addons) || addons.length === 0) {
+    throw new Error("Could not read the Stremio addon collection");
+  }
+
+  const index = addons.findIndex((addon) => addon.transportUrl === manifestUrl);
+  if (index === -1) return "not-installed";
+
+  const manifestResponse = await fetch(manifestUrl);
+  if (!manifestResponse.ok) {
+    throw new Error(`Could not read the addon manifest (status ${manifestResponse.status})`);
+  }
+  const manifest = (await manifestResponse.json()) as unknown;
+
+  const next = addons.map((addon, i) => (i === index ? { ...addon, manifest } : addon));
+
+  const saved = await postEnvelope<{ success: boolean }>("addonCollectionSet", {
+    authKey,
+    addons: next,
+  });
+
+  if (saved.error) {
+    if (AUTH_ERROR_CODES.has(saved.error.code ?? -1)) {
+      clearAuthKey();
+      return "unauthorized";
+    }
+    throw new Error(saved.error.message ?? "Could not update the Stremio addon collection");
+  }
+
+  return "synced";
 }
 
 export async function createLinkCode(): Promise<LinkCode> {
