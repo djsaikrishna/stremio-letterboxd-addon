@@ -1155,7 +1155,7 @@ export default function Configure() {
 
             <div className="mt-5 border-t border-zinc-800 pt-4">
               <p className="text-center text-[11px] font-light leading-relaxed text-zinc-500">
-                For the best experience, use{" "}
+                Tip: use{" "}
                 <a
                   href="https://stremio-addon-manager.vercel.app/"
                   target="_blank"
@@ -1164,7 +1164,7 @@ export default function Configure() {
                 >
                   Stremio Addon Manager
                 </a>{" "}
-                to move this addon to the top of your list so Letterboxd info appears first.
+                to rank Stremboxd first.
               </p>
             </div>
           </div>
