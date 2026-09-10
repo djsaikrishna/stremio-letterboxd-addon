@@ -23,6 +23,7 @@ import { CatalogsSection } from "./components/CatalogsSection";
 import { DisplayOptionsSection } from "./components/DisplayOptionsSection";
 import { ExternalCatalogsSection } from "./components/ExternalCatalogsSection";
 import { UserListsSection } from "./components/UserListsSection";
+import { StremioLinkSection } from "./components/StremioLinkSection";
 
 interface BaseProps {
   user?: { username: string; displayName: string | null };
@@ -42,6 +43,7 @@ interface FullModeProps extends BaseProps {
   onPreferencesChange: (prefs: UserPreferences) => void;
   sortVariants: Record<string, string[]>;
   onSortVariantsChange: (variants: Record<string, string[]>) => void;
+  onStremioLinkedChange: (linked: boolean) => void;
 }
 
 interface PublicModeProps extends BaseProps {
@@ -763,6 +765,10 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
               onSelectAll={selectAllOwnLists}
               onDeselectAll={deselectAllOwnLists}
             />
+          )}
+
+          {!isPublic && (
+            <StremioLinkSection onLinkedChange={(props as FullModeProps).onStremioLinkedChange} />
           )}
 
           {/* Save Button */}

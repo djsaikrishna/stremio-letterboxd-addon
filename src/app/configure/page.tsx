@@ -195,6 +195,9 @@ export default function Configure() {
   const [showConfig, setShowConfig] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
+  // Reported by StremioLinkSection; consumed by the sync-on-save wiring (Task 5).
+  // The read value is intentionally left unbound until then.
+  const [, setIsStremioLinked] = useState(false);
 
   // Public (username-only) state
   const [usernameValidated, setUsernameValidated] = useState<UsernameValidation | null>(null);
@@ -922,6 +925,7 @@ export default function Configure() {
           onSortVariantsChange={(v) => setPreferences({ ...preferences, sortVariants: v })}
           onSave={handleSavePreferences}
           isSaving={isSavingPrefs}
+          onStremioLinkedChange={setIsStremioLinked}
           externalListUrl={externalListUrl}
           onExternalListUrlChange={setExternalListUrl}
           onAddExternalList={handleResolveExternalList}
