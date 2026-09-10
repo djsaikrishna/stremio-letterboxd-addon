@@ -1,8 +1,9 @@
 import Fastify from 'fastify';
 import type { ServerOptions } from 'node:https';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import sharp from 'sharp';
-import { config } from './config/index.js';
+import { config, corsOrigins } from './config/index.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { setupRateLimit } from './middleware/rate-limit.js';
@@ -51,13 +52,27 @@ export async function buildApp(httpsOptions?: ServerOptions) {
     ...(httpsOptions && { https: httpsOptions }),
   });
 
-  const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
   await app.register(cors, {
     origin: corsOrigins,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // Required for the session cookie to travel from the frontend origin.
+    // Safe only because CORS_ORIGIN is an explicit allowlist (no wildcard).
+    credentials: true,
   });
   logger.info({ origins: corsOrigins }, 'CORS configured');
+
+  // Browsers treat http:// and https:// as different sites, so a SameSite=Lax
+  // session cookie is dropped when the frontend and the API disagree on scheme.
+  const apiScheme = new URL(config.PUBLIC_URL).protocol;
+  if (!corsOrigins.some((origin) => new URL(origin).protocol === apiScheme)) {
+    logger.warn(
+      { publicUrl: config.PUBLIC_URL, origins: corsOrigins },
+      'No allowed origin shares the API scheme — the session cookie will be rejected by browsers',
+    );
+  }
+
+  await app.register(cookie);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await setupRateLimit(app as any);

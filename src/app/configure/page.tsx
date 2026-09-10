@@ -10,7 +10,6 @@ const TOAST_DURATION = 3000;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
 interface LoginResponse {
-  userToken: string;
   manifestUrl: string;
   user: {
     id: string;
@@ -74,6 +73,39 @@ interface ResolvedContributor {
 
 const CONTRIBUTOR_URL_RE = /letterboxd\.com\/(director|actor|studio)\//i;
 
+const PUBLIC_DRAFT_STORAGE_KEY = "configure:public-draft";
+// Guards decoding against an oversized ?c= payload before any JSON parsing.
+const PUBLIC_DRAFT_MAX_LENGTH = 16_384;
+
+/**
+ * Snapshot of the public configurator state.
+ *
+ * Distinct from PublicConfig: the manifest config only carries list ids, which
+ * is not enough to redraw the UI. The draft keeps the names and owners of
+ * external catalogs, which cannot be recovered from an id alone.
+ *
+ * The member's own lists are deliberately left out and re-fetched on restore:
+ * embedding fifty list names would blow past a usable URL length.
+ */
+interface PublicDraft {
+  v: 1;
+  user?: Omit<UsernameValidation, "lists">;
+  catalogs: { popular: boolean; top250: boolean };
+  watchlist: boolean;
+  ownLists: string[];
+  likedFilms: boolean;
+  lists: ResolvedList[];
+  contributors: ResolvedContributor[];
+  externalWatchlists: Array<{ username: string; displayName: string }>;
+  showRatings: boolean;
+  hideUnreleased: boolean;
+  hideNoHomeRelease: boolean;
+  search: boolean;
+  catalogNames: Record<string, string>;
+  catalogOrder: string[];
+  sortVariants: Record<string, string[]>;
+}
+
 function getDefaultPreferences(
   lists: LoginResponse["lists"]
 ): UserPreferences {
@@ -84,15 +116,72 @@ function getDefaultPreferences(
   };
 }
 
-function encodePublicConfig(config: PublicConfig): string {
-  const json = JSON.stringify(config);
+function encodeBase64Url(value: unknown): string {
   // UTF-8 encode then base64url
-  const utf8Bytes = new TextEncoder().encode(json);
-  const base64 = btoa(String.fromCharCode(...utf8Bytes));
-  return base64
+  const utf8Bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = "";
+  for (const byte of utf8Bytes) binary += String.fromCharCode(byte);
+  return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+}
+
+function decodeBase64Url(raw: string): unknown {
+  const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function encodePublicConfig(config: PublicConfig): string {
+  return encodeBase64Url(config);
+}
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isRecordOf = <T,>(value: unknown, isValid: (item: unknown) => item is T): value is Record<string, T> =>
+  typeof value === "object" && value !== null && !Array.isArray(value) &&
+  Object.values(value).every(isValid);
+
+/**
+ * Parses a resume link payload. Anything unexpected yields null so a malformed
+ * or tampered ?c= value falls back to the normal form instead of half-applying.
+ */
+function parsePublicDraft(raw: string): PublicDraft | null {
+  if (raw.length === 0 || raw.length > PUBLIC_DRAFT_MAX_LENGTH) return null;
+
+  let decoded: unknown;
+  try {
+    decoded = decodeBase64Url(raw);
+  } catch {
+    return null;
+  }
+
+  if (typeof decoded !== "object" || decoded === null) return null;
+  const draft = decoded as Record<string, unknown>;
+  if (draft.v !== 1) return null;
+
+  const catalogs = draft.catalogs as Record<string, unknown> | undefined;
+  if (
+    typeof catalogs !== "object" || catalogs === null ||
+    typeof catalogs.popular !== "boolean" || typeof catalogs.top250 !== "boolean"
+  ) {
+    return null;
+  }
+
+  const booleans = ["watchlist", "likedFilms", "showRatings", "hideUnreleased", "hideNoHomeRelease", "search"];
+  if (booleans.some((key) => typeof draft[key] !== "boolean")) return null;
+
+  if (!isStringArray(draft.ownLists) || !isStringArray(draft.catalogOrder)) return null;
+  if (!Array.isArray(draft.lists) || !Array.isArray(draft.contributors) || !Array.isArray(draft.externalWatchlists)) {
+    return null;
+  }
+  if (!isRecordOf(draft.catalogNames, (v): v is string => typeof v === "string")) return null;
+  if (!isRecordOf(draft.sortVariants, isStringArray)) return null;
+
+  return draft as unknown as PublicDraft;
 }
 
 export default function Configure() {
@@ -125,6 +214,8 @@ export default function Configure() {
   const [publicCatalogOrder, setPublicCatalogOrder] = useState<string[]>([]);
   const [publicSortVariants, setPublicSortVariants] = useState<Record<string, string[]>>({});
   const [generatedManifestUrl, setGeneratedManifestUrl] = useState<string | null>(null);
+  const [resumeLink, setResumeLink] = useState<string | null>(null);
+  const [resumeCopied, setResumeCopied] = useState(false);
 
   // Shared
   const [externalListUrl, setExternalListUrl] = useState("");
@@ -134,6 +225,10 @@ export default function Configure() {
   const [show2FA, setShow2FA] = useState(false);
   const [totpCode, setTotpCode] = useState("");
   const [is2FALoading, setIs2FALoading] = useState(false);
+
+  // Stays true until the stored session (cookie) and resume link have been
+  // checked, so the login form never flashes for a returning user.
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -206,6 +301,8 @@ export default function Configure() {
     setPreferences(null);
     setUsernameValidated(null);
     setGeneratedManifestUrl(null);
+    setResumeLink(null);
+    setResumeCopied(false);
     setShowConfig(false);
     setShowPublicConfig(false);
     setShow2FA(false);
@@ -235,6 +332,7 @@ export default function Configure() {
   ): Promise<ResolvedList> => {
     const response = await fetch(`${BACKEND_URL}${endpoint}`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -292,6 +390,93 @@ export default function Configure() {
     setShowConfig(true);
   };
 
+  const fetchMemberLists = async (username: string): Promise<UsernameValidation["lists"]> => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.valid) return [];
+      return data.lists as UsernameValidation["lists"];
+    } catch {
+      return [];
+    }
+  };
+
+  const applyPublicDraft = async (draft: PublicDraft) => {
+    if (draft.user) {
+      // Own lists are not carried by the draft: re-resolve them by username.
+      const lists = await fetchMemberLists(draft.user.username);
+      setUsernameValidated({ ...draft.user, lists });
+    } else {
+      setUsernameValidated(null);
+    }
+    setPublicCatalogs(draft.catalogs);
+    setPublicWatchlist(draft.watchlist);
+    setPublicOwnLists(draft.ownLists);
+    setPublicLikedFilms(draft.likedFilms);
+    setPublicLists(draft.lists);
+    setPublicContributors(draft.contributors);
+    setPublicExternalWatchlists(draft.externalWatchlists);
+    setShowRatings(draft.showRatings);
+    setHideUnreleased(draft.hideUnreleased);
+    setHideNoHomeRelease(draft.hideNoHomeRelease);
+    setPublicSearch(draft.search);
+    setPublicCatalogNames(draft.catalogNames);
+    setPublicCatalogOrder(draft.catalogOrder);
+    setPublicSortVariants(draft.sortVariants);
+    setShowPublicConfig(true);
+  };
+
+  // Restores a returning user: the httpOnly session cookie for the full mode,
+  // a ?c= resume link or the last local draft for the public mode.
+  useEffect(() => {
+    let cancelled = false;
+
+    const restore = async () => {
+      const resumeParam = new URLSearchParams(window.location.search).get("c");
+      const stored = (() => {
+        try {
+          return localStorage.getItem(PUBLIC_DRAFT_STORAGE_KEY);
+        } catch {
+          return null;
+        }
+      })();
+
+      const draft = parsePublicDraft(resumeParam ?? stored ?? "");
+      if (draft) {
+        await applyPublicDraft(draft);
+        if (!cancelled) setIsRestoringSession(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/auth/session`, {
+          credentials: "include",
+        });
+
+        if (response.ok && !cancelled) {
+          applyLoginResult((await response.json()) as LoginResponse);
+        }
+      } catch {
+        // No reachable session: fall through to the login form.
+      } finally {
+        if (!cancelled) setIsRestoringSession(false);
+      }
+    };
+
+    void restore();
+
+    return () => {
+      cancelled = true;
+    };
+    // Mount-only: restoring again on every render would fight the user's edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSubmit = async () => {
     const username = usernameRef.current?.value?.trim();
     const password = passwordRef.current?.value?.trim();
@@ -311,6 +496,7 @@ export default function Configure() {
         // Full auth flow
         const response = await fetch(`${BACKEND_URL}/auth/login`, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
         });
@@ -332,6 +518,7 @@ export default function Configure() {
         // Public flow (username only)
         const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username }),
         });
@@ -373,6 +560,7 @@ export default function Configure() {
     try {
       const response = await fetch(`${BACKEND_URL}/auth/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, totp: totpCode.trim() }),
       });
@@ -401,8 +589,9 @@ export default function Configure() {
     try {
       const response = await fetch(`${BACKEND_URL}/auth/preferences`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userToken: result.userToken, preferences }),
+        body: JSON.stringify({ preferences }),
       });
 
       if (!response.ok) throw new Error("Failed to save preferences");
@@ -423,6 +612,7 @@ export default function Configure() {
     try {
       const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
@@ -489,6 +679,7 @@ export default function Configure() {
       setIsResolvingList(true);
       fetch(`${BACKEND_URL}/auth/resolve-contributor-public`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       })
@@ -514,7 +705,7 @@ export default function Configure() {
       isWatchlistDuplicate: (u) =>
         preferences?.externalWatchlists?.some((w) => w.username.toLowerCase() === u.toLowerCase()) ?? false,
       isListDuplicate: (id) => preferences?.externalLists.some((l) => l.id === id) ?? false,
-      fetchList: (url) => resolveList("/letterboxd/resolve-list", { userToken: result.userToken, url }),
+      fetchList: (url) => resolveList("/letterboxd/resolve-list", { url }),
       onAddWatchlist: (resolved) => {
         if (preferences) setPreferences({ ...preferences, externalWatchlists: [...(preferences.externalWatchlists ?? []), resolved] });
       },
@@ -532,6 +723,7 @@ export default function Configure() {
       setIsResolvingList(true);
       fetch(`${BACKEND_URL}/auth/resolve-contributor-public`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       })
@@ -619,7 +811,43 @@ export default function Configure() {
     const manifestUrl = `${BACKEND_URL}/${encoded}/manifest.json`;
     setGeneratedManifestUrl(manifestUrl);
     setShowPublicConfig(false);
+
+    const draft: PublicDraft = {
+      v: 1,
+      ...(usernameValidated
+        ? {
+            user: {
+              username: usernameValidated.username,
+              displayName: usernameValidated.displayName,
+              memberId: usernameValidated.memberId,
+            },
+          }
+        : {}),
+      catalogs: publicCatalogs,
+      watchlist: publicWatchlist,
+      ownLists: publicOwnLists,
+      likedFilms: publicLikedFilms,
+      lists: publicLists,
+      contributors: publicContributors,
+      externalWatchlists: publicExternalWatchlists,
+      showRatings,
+      hideUnreleased,
+      hideNoHomeRelease,
+      search: publicSearch,
+      catalogNames: publicCatalogNames,
+      catalogOrder: publicCatalogOrder,
+      sortVariants: publicSortVariants,
+    };
+
+    const encodedDraft = encodeBase64Url(draft);
+    setResumeLink(`${window.location.origin}/configure?c=${encodedDraft}`);
+    try {
+      localStorage.setItem(PUBLIC_DRAFT_STORAGE_KEY, encodedDraft);
+    } catch {
+      // Private mode or blocked storage: the resume link still works.
+    }
   };
+
 
   const handleCopy = async () => {
     const url = result?.manifestUrl || generatedManifestUrl;
@@ -628,6 +856,13 @@ export default function Configure() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleCopyResumeLink = async () => {
+    if (!resumeLink) return;
+    await navigator.clipboard.writeText(resumeLink);
+    setResumeCopied(true);
+    setTimeout(() => setResumeCopied(false), 2000);
   };
 
   const handleInstallStremio = () => {
@@ -644,7 +879,33 @@ export default function Configure() {
     resetSessionResults();
     setPasswordPreview("");
     if (passwordRef.current) passwordRef.current.value = "";
+    try {
+      localStorage.removeItem(PUBLIC_DRAFT_STORAGE_KEY);
+    } catch {
+      // Nothing to clear when storage is unavailable.
+    }
+    // Drop the resume link from the address bar so a reload starts clean.
+    if (window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
   };
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${BACKEND_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Best effort: the local state is cleared either way.
+    }
+    handleReset();
+  };
+
+  // Session restore in flight: hold the frame instead of flashing the login form
+  if (isRestoringSession) {
+    return <div className="fixed inset-0 bg-[#0a0a0a]" />;
+  }
 
   // Full auth configuration modal
   if (result && showConfig && preferences && !forceMainForm) {
@@ -776,6 +1037,29 @@ export default function Configure() {
                 </div>
               </div>
 
+              {resumeLink && (
+                <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-800/35 p-3">
+                  <label className="block text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                    Edit link — reopens this configuration on any device
+                  </label>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={resumeLink}
+                      className="block h-10 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-[12px] text-zinc-300 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyResumeLink}
+                      className="h-10 flex-shrink-0 rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-xs text-zinc-300 transition-colors hover:bg-zinc-700"
+                    >
+                      {resumeCopied ? "✓" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4 flex items-center justify-center gap-3 text-xs text-zinc-500">
                 <button
                   type="button"
@@ -791,10 +1075,10 @@ export default function Configure() {
                 <span className="text-zinc-700">|</span>
                 <button
                   type="button"
-                  onClick={handleReset}
+                  onClick={result ? handleLogout : handleReset}
                   className="transition-colors hover:text-zinc-300"
                 >
-                  Start over
+                  {result ? "Sign out" : "Start over"}
                 </button>
               </div>
             </div>

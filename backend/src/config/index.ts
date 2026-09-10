@@ -27,6 +27,8 @@ export const jwtConfig = {
   ttl: config.JWT_TTL,
 } as const;
 
+export const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
+
 export const cacheConfig = {
   maxSize: config.CACHE_MAX_SIZE,
   filmTtl: config.CACHE_FILM_TTL * 1000,

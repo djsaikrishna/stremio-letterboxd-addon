@@ -11,7 +11,7 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(jwtConfig.secret);
 }
 
-function parseTtl(ttl: string): number {
+export function parseTtl(ttl: string): number {
   const match = ttl.match(/^(\d+)([smhd])$/);
   if (!match) {
     throw new Error(`Invalid TTL format: ${ttl}`);

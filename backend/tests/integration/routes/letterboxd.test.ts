@@ -163,7 +163,8 @@ describe('letterboxd routes', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/letterboxd/resolve-list',
-        payload: { userToken: 'invalid', url: 'https://letterboxd.com/user/list/my-list/' },
+        cookies: { sb_session: 'invalid' },
+        payload: { url: 'https://letterboxd.com/user/list/my-list/' },
       });
       expect(res.statusCode).toBe(401);
     });
@@ -174,7 +175,8 @@ describe('letterboxd routes', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/letterboxd/resolve-list',
-        payload: { userToken, url: 'https://example.com/not-a-list' },
+        cookies: { sb_session: userToken },
+        payload: { url: 'https://example.com/not-a-list' },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -189,7 +191,8 @@ describe('letterboxd routes', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/letterboxd/resolve-list',
-        payload: { userToken, url: 'https://letterboxd.com/testuser/list/my-list/' },
+        cookies: { sb_session: userToken },
+        payload: { url: 'https://letterboxd.com/testuser/list/my-list/' },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -209,7 +212,8 @@ describe('letterboxd routes', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/letterboxd/resolve-list',
-        payload: { userToken, url: 'https://letterboxd.com/testuser/list/my-cool-list/' },
+        cookies: { sb_session: userToken },
+        payload: { url: 'https://letterboxd.com/testuser/list/my-cool-list/' },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toMatchObject({ id: 'list-abc', name: 'My Cool List', filmCount: 25 });

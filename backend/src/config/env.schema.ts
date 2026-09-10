@@ -20,7 +20,7 @@ export const envSchema = z.object({
     .length(64, 'ENCRYPTION_KEY must be 64 hex characters (32 bytes)')
     .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be hexadecimal'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_TTL: z.string().default('7d'),
+  JWT_TTL: z.string().default('30d'),
   DASHBOARD_PASSWORD: z.string().min(8, 'DASHBOARD_PASSWORD must be at least 8 characters'),
 
   DATABASE_PATH: z.string().default('./data/stremio-letterboxd.db'),

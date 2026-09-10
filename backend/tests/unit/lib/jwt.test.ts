@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { signUserToken, verifyUserToken, signJwtToken, verifyJwtToken } from '../../../src/lib/jwt.js';
+import { signUserToken, verifyUserToken, signJwtToken, verifyJwtToken, parseTtl } from '../../../src/lib/jwt.js';
+import { jwtConfig } from '../../../src/config/index.js';
 
 describe('jwt (user + dashboard tokens)', () => {
   afterEach(() => {
@@ -27,8 +28,8 @@ describe('jwt (user + dashboard tokens)', () => {
       vi.useFakeTimers();
       const token = await signUserToken(payload);
 
-      // Advance past 7d default TTL
-      vi.advanceTimersByTime(8 * 24 * 60 * 60 * 1000);
+      // Advance past the configured TTL, whatever it is set to
+      vi.advanceTimersByTime((parseTtl(jwtConfig.ttl) + 60) * 1000);
 
       const result = await verifyUserToken(token);
       expect(result).toBeNull();
