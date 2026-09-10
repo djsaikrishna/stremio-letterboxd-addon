@@ -138,7 +138,7 @@ export async function pollAuthKey(
 
 // Resolves after `ms`, or immediately if `signal` aborts first. Always cleans
 // up its timer and listener on settle so neither leaks past this call.
-function sleepOrAbort(ms: number, signal: AbortSignal): Promise<void> {
+export function sleepOrAbort(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const onAbort = () => {
       clearTimeout(timer);

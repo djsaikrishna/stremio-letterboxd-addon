@@ -6,6 +6,7 @@ import Footer from "../components/Footer";
 import ConfigurationModal from "./ConfigurationModal";
 import type { UserPreferences } from "../../types/preferences";
 import { readAuthKey, syncAddon, type SyncResult } from "../../lib/stremio-sync";
+import { readSession as readNuvioSession, syncAddon as syncNuvioAddon } from "../../lib/nuvio-sync";
 
 const TOAST_DURATION = 3000;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
@@ -197,6 +198,7 @@ export default function Configure() {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
   const [isStremioLinked, setIsStremioLinked] = useState(false);
+  const [isNuvioLinked, setIsNuvioLinked] = useState(false);
   const [syncOutcome, setSyncOutcome] = useState<SyncResult | null>(null);
 
   // Public (username-only) state
@@ -601,22 +603,37 @@ export default function Configure() {
       if (!response.ok) throw new Error("Failed to save preferences");
 
       const authKey = readAuthKey();
-      if (!authKey || !result.manifestUrl) {
+      const nuvioSession = readNuvioSession();
+      if ((!authKey && !nuvioSession) || !result.manifestUrl) {
         setShowConfig(false);
         return;
       }
 
-      try {
-        const outcome = await syncAddon(authKey, result.manifestUrl);
-        if (outcome === "unauthorized") {
-          setIsStremioLinked(false);
-          showErrorToast("Your Stremio session expired. Link your account again to keep syncing.");
-        } else {
-          setSyncOutcome(outcome);
+      if (authKey) {
+        try {
+          const outcome = await syncAddon(authKey, result.manifestUrl);
+          if (outcome === "unauthorized") {
+            setIsStremioLinked(false);
+            showErrorToast("Your Stremio session expired. Link your account again to keep syncing.");
+          } else {
+            setSyncOutcome(outcome);
+          }
+        } catch {
+          showErrorToast("Preferences saved, but syncing to Stremio failed. Try again later.");
         }
-      } catch {
-        showErrorToast("Preferences saved, but syncing to Stremio failed. Try again later.");
       }
+
+      if (nuvioSession) {
+        try {
+          if (await syncNuvioAddon(result.manifestUrl) === "unauthorized") {
+            setIsNuvioLinked(false);
+            showErrorToast("Your Nuvio session expired. Link your account again to keep syncing.");
+          }
+        } catch {
+          showErrorToast("Preferences saved, but syncing to Nuvio failed. Try again later.");
+        }
+      }
+
       setShowConfig(false);
     } catch {
       showErrorToast("Failed to save preferences. Please try again.");
@@ -946,6 +963,8 @@ export default function Configure() {
           isSaving={isSavingPrefs}
           isStremioLinked={isStremioLinked}
           onStremioLinkedChange={setIsStremioLinked}
+          isNuvioLinked={isNuvioLinked}
+          onNuvioLinkedChange={setIsNuvioLinked}
           externalListUrl={externalListUrl}
           onExternalListUrlChange={setExternalListUrl}
           onAddExternalList={handleResolveExternalList}
