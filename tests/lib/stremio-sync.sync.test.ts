@@ -110,6 +110,24 @@ describe("syncAddon", () => {
     expect(setCalled).toBe(false);
   });
 
+  it("never writes when the fetched manifest is not a valid manifest", async () => {
+    let setCalled = false;
+
+    mswServer.use(
+      http.post(`${STREMIO_API}/addonCollectionGet`, () =>
+        HttpResponse.json({ result: { addons: makeCollection(), lastModified: "2026-09-10T00:00:00Z" } }),
+      ),
+      http.get(MANIFEST_URL, () => HttpResponse.json(null)),
+      http.post(`${STREMIO_API}/addonCollectionSet`, () => {
+        setCalled = true;
+        return HttpResponse.json({ result: { success: true } });
+      }),
+    );
+
+    await expect(syncAddon("auth-123", MANIFEST_URL)).rejects.toThrow();
+    expect(setCalled).toBe(false);
+  });
+
   it("returns unauthorized and clears the stored key on an auth error", async () => {
     storeAuthKey("auth-123");
 

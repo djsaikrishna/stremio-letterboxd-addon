@@ -43,6 +43,7 @@ interface FullModeProps extends BaseProps {
   onPreferencesChange: (prefs: UserPreferences) => void;
   sortVariants: Record<string, string[]>;
   onSortVariantsChange: (variants: Record<string, string[]>) => void;
+  isStremioLinked: boolean;
   onStremioLinkedChange: (linked: boolean) => void;
 }
 
@@ -92,7 +93,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
   // Sort variant expansion state
   const [expandedVariantCatalog, setExpandedVariantCatalog] = useState<string | null>(null);
 
-  // DnD sensors — drag only activates from the grip handle
+  // DnD sensors: drag only activates from the grip handle
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -768,7 +769,10 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
           )}
 
           {!isPublic && (
-            <StremioLinkSection onLinkedChange={(props as FullModeProps).onStremioLinkedChange} />
+            <StremioLinkSection
+              linked={(props as FullModeProps).isStremioLinked}
+              onLinkedChange={(props as FullModeProps).onStremioLinkedChange}
+            />
           )}
 
           {/* Save Button */}
@@ -796,13 +800,13 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  {isPublic ? "Generate & Install" : "Save & Install"}
+                  {isPublic ? "Generate & Install" : (props as FullModeProps).isStremioLinked ? "Save" : "Save & Install"}
                 </>
               )}
             </button>
 
             <p className="mt-4 text-center text-xs text-zinc-500">
-              Hosting costs ~$14/month —{" "}
+              Hosting costs ~$14/month, so{" "}
               <a
                 href="https://buymeacoffee.com/esp4ce"
                 target="_blank"

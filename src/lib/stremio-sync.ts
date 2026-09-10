@@ -75,6 +75,9 @@ export async function syncAddon(authKey: string, manifestUrl: string): Promise<S
     throw new Error(`Could not read the addon manifest (status ${manifestResponse.status})`);
   }
   const manifest = (await manifestResponse.json()) as unknown;
+  if (typeof manifest !== "object" || manifest === null || !("id" in manifest)) {
+    throw new Error("Fetched addon manifest is not valid");
+  }
 
   const next = addons.map((addon, i) => (i === index ? { ...addon, manifest } : addon));
 
@@ -129,8 +132,24 @@ export async function pollAuthKey(
     if (authKey) return authKey;
 
     if (Date.now() >= deadline) throw new Error("Stremio linking timed out");
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    await sleepOrAbort(intervalMs, signal);
   }
+}
+
+// Resolves after `ms`, or immediately if `signal` aborts first. Always cleans
+// up its timer and listener on settle so neither leaks past this call.
+function sleepOrAbort(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export const AUTH_KEY_STORAGE_KEY = "configure:stremio-auth-key";

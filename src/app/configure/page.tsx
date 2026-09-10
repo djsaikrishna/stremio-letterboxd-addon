@@ -5,6 +5,7 @@ import TransitionLink from "../components/TransitionLink";
 import Footer from "../components/Footer";
 import ConfigurationModal from "./ConfigurationModal";
 import type { UserPreferences } from "../../types/preferences";
+import { readAuthKey, syncAddon, type SyncResult } from "../../lib/stremio-sync";
 
 const TOAST_DURATION = 3000;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
@@ -195,9 +196,8 @@ export default function Configure() {
   const [showConfig, setShowConfig] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
-  // Reported by StremioLinkSection; consumed by the sync-on-save wiring (Task 5).
-  // The read value is intentionally left unbound until then.
-  const [, setIsStremioLinked] = useState(false);
+  const [isStremioLinked, setIsStremioLinked] = useState(false);
+  const [syncOutcome, setSyncOutcome] = useState<SyncResult | null>(null);
 
   // Public (username-only) state
   const [usernameValidated, setUsernameValidated] = useState<UsernameValidation | null>(null);
@@ -589,6 +589,7 @@ export default function Configure() {
     if (!result || !preferences) return;
 
     setIsSavingPrefs(true);
+    setSyncOutcome(null);
     try {
       const response = await fetch(`${BACKEND_URL}/auth/preferences`, {
         method: "POST",
@@ -598,6 +599,24 @@ export default function Configure() {
       });
 
       if (!response.ok) throw new Error("Failed to save preferences");
+
+      const authKey = readAuthKey();
+      if (!authKey || !result.manifestUrl) {
+        setShowConfig(false);
+        return;
+      }
+
+      try {
+        const outcome = await syncAddon(authKey, result.manifestUrl);
+        if (outcome === "unauthorized") {
+          setIsStremioLinked(false);
+          showErrorToast("Your Stremio session expired. Link your account again to keep syncing.");
+        } else {
+          setSyncOutcome(outcome);
+        }
+      } catch {
+        showErrorToast("Preferences saved, but syncing to Stremio failed. Try again later.");
+      }
       setShowConfig(false);
     } catch {
       showErrorToast("Failed to save preferences. Please try again.");
@@ -925,6 +944,7 @@ export default function Configure() {
           onSortVariantsChange={(v) => setPreferences({ ...preferences, sortVariants: v })}
           onSave={handleSavePreferences}
           isSaving={isSavingPrefs}
+          isStremioLinked={isStremioLinked}
           onStremioLinkedChange={setIsStremioLinked}
           externalListUrl={externalListUrl}
           onExternalListUrlChange={setExternalListUrl}
@@ -1011,16 +1031,43 @@ export default function Configure() {
             </p>
 
             <div className="mt-6">
-              <button
-                type="button"
-                onClick={handleInstallStremio}
-                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-900"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Install in Stremio
-              </button>
+              {syncOutcome === "synced" ? (
+                <>
+                  <div className="flex items-center justify-center gap-2 rounded-lg bg-zinc-800/35 px-4 py-3">
+                    <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400" />
+                    <p className="text-[13px] text-zinc-300">Updated in Stremio.</p>
+                  </div>
+                  <p className="mt-2 text-center text-[11px] text-zinc-500">
+                    TV and mobile may need a restart.{" "}
+                    <button
+                      type="button"
+                      onClick={handleInstallStremio}
+                      className="cursor-pointer underline underline-offset-2 transition-colors hover:text-zinc-300"
+                    >
+                      Reinstall manually
+                    </button>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleInstallStremio}
+                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-900"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Install in Stremio
+                  </button>
+
+                  {syncOutcome === "not-installed" && (
+                    <p className="mt-3 text-center text-[13px] text-zinc-400">
+                      Install it once, then your changes sync automatically.
+                    </p>
+                  )}
+                </>
+              )}
 
               <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-800/35 p-3">
                 <label className="block text-[10px] uppercase tracking-[0.12em] text-zinc-500">Manifest URL</label>
@@ -1044,7 +1091,7 @@ export default function Configure() {
               {resumeLink && (
                 <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-800/35 p-3">
                   <label className="block text-[10px] uppercase tracking-[0.12em] text-zinc-500">
-                    Edit link — reopens this configuration on any device
+                    Edit link: reopens this configuration on any device
                   </label>
                   <div className="mt-2 flex gap-2">
                     <input
