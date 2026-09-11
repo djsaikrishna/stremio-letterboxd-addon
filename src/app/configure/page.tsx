@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import TransitionLink from "../components/TransitionLink";
 import Footer from "../components/Footer";
 import ConfigurationModal from "./ConfigurationModal";
@@ -191,6 +192,18 @@ function parsePublicDraft(raw: string): PublicDraft | null {
 }
 
 export default function Configure() {
+  return (
+    <Suspense fallback={<div className="fixed inset-0 bg-[#0a0a0a]" />}>
+      <ConfigureInner />
+    </Suspense>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary above it for the static
+// shell — the actual read never suspends at runtime, this is build-time only.
+function ConfigureInner() {
+  const searchParams = useSearchParams();
+  const [confirmingCheckout, setConfirmingCheckout] = useState(searchParams.get("checkout") === "success");
   const [isLoading, setIsLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [copied, setCopied] = useState(false);
@@ -501,6 +514,42 @@ export default function Configure() {
     // Mount-only: restoring again on every render would fight the user's edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // After a Lemon Squeezy checkout redirect (?checkout=success), poll for the
+  // webhook-driven entitlement to land instead of showing a stale unpaid UI.
+  useEffect(() => {
+    if (!confirmingCheckout) return;
+
+    let cancelled = false;
+    const deadline = Date.now() + 20_000;
+
+    const poll = async () => {
+      while (!cancelled && Date.now() < deadline) {
+        try {
+          const res = await fetch(`${BACKEND_URL}/auth/session`, {
+            credentials: "include",
+            headers: authHeaders(),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.entitled) {
+              if (!cancelled) setConfirmingCheckout(false);
+              return;
+            }
+          }
+        } catch {
+          // Transient network error while polling — just retry until the deadline.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      if (!cancelled) setConfirmingCheckout(false);
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmingCheckout]);
 
   const handleSubmit = async () => {
     const username = usernameRef.current?.value?.trim();
@@ -972,6 +1021,21 @@ export default function Configure() {
     }
     handleReset();
   };
+
+  // Just returned from a Lemon Squeezy checkout: hold here until the webhook-driven
+  // entitlement is confirmed (or the 20s deadline passes), then fall through as normal.
+  if (confirmingCheckout) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center">
+        <div>
+          <p className="text-sm text-zinc-300">Confirming your payment…</p>
+          <p className="mt-2 text-[12px] text-zinc-500">
+            This can take a minute. If nothing happens, reload this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Session restore in flight: hold the frame instead of flashing the login form
   if (isRestoringSession) {
