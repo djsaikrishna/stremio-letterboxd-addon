@@ -6,7 +6,8 @@ import { signUserToken } from '../../lib/jwt.js';
 import { setSessionCookie, clearSessionCookie } from '../../lib/session-cookie.js';
 import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 import { config } from '../../config/index.js';
-import { ENTITLED_SESSION_TTL_SECONDS } from '../../lib/entitlement.js';
+import { isEntitled, ENTITLED_SESSION_TTL_SECONDS, type SubscriptionStatus } from '../../lib/entitlement.js';
+import { findSubscriptionByUserId } from '../../db/repositories/subscription.repository.js';
 import {
   getUserPreferences,
   revokeUserSessions,
@@ -176,16 +177,38 @@ export async function authRoutes(app: FastifyInstance) {
         throw error;
       }
 
-      // Sliding expiration: an active user never hits the token TTL.
-      const refreshedToken = await signUserToken({
-        userId: user.id,
-        letterboxdId: user.letterboxd_id,
-        username: user.letterboxd_username,
-      });
-      setSessionCookie(reply, refreshedToken);
+      // A cookie is only ever issued to an entitled user (see /auth/login), so
+      // reaching this point with entitled: false means the subscription lapsed
+      // after the cookie was already issued: revoke the session outright.
+      const subscription = findSubscriptionByUserId(user.id);
+      const entitled = isEntitled(
+        subscription
+          ? {
+              status: subscription.status as SubscriptionStatus,
+              currentPeriodEnd: subscription.current_period_end,
+            }
+          : null
+      );
+
+      if (!entitled) {
+        clearSessionCookie(reply);
+        return reply.status(401).send({ error: 'Subscription no longer active', code: 'NO_SESSION' });
+      }
+
+      // Sliding expiration: an active subscriber never hits the token TTL.
+      const refreshedToken = await signUserToken(
+        {
+          userId: user.id,
+          letterboxdId: user.letterboxd_id,
+          username: user.letterboxd_username,
+        },
+        ENTITLED_SESSION_TTL_SECONDS
+      );
+      setSessionCookie(reply, refreshedToken, ENTITLED_SESSION_TTL_SECONDS);
 
       return {
         manifestUrl: `${config.PUBLIC_URL}/stremio/${user.id}/manifest.json`,
+        entitled: true,
         user: {
           id: user.id,
           username: user.letterboxd_username,

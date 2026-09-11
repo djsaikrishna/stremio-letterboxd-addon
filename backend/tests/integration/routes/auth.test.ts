@@ -22,6 +22,12 @@ vi.mock('../../../src/modules/letterboxd/letterboxd.client.js', async (importOri
     getCurrentUser: vi.fn().mockResolvedValue({
       member: { id: 'lbxd-login-test', username: 'testuser', displayName: 'Test User' },
     }),
+    refreshAccessToken: vi.fn().mockResolvedValue({
+      access_token: 'test-access-token',
+      refresh_token: 'test-refresh-token',
+      expires_in: 3600,
+      token_type: 'Bearer',
+    }),
     createAuthenticatedClient: vi.fn().mockReturnValue({
       getUserLists: vi.fn().mockResolvedValue({ items: [] }),
     }),
@@ -252,6 +258,57 @@ describe('auth routes', () => {
 
       expect(res.statusCode).toBe(401);
       expect(res.cookies.find((c) => c.name === 'sb_session')?.value).toBe('');
+    });
+
+    it('revokes the session and returns 401 once the subscription is no longer entitled', async () => {
+      const user = createUser({ letterboxdId: 'session-lapse-1', letterboxdUsername: 'lapseuser', refreshToken: 'x' });
+      upsertSubscription({
+        userId: user.id,
+        providerSubscriptionId: 'ls-sub-lapse',
+        variantId: '200',
+        status: 'active',
+        currentPeriodEnd: '2099-01-01T00:00:00.000Z',
+      });
+      const token = await signUserToken(
+        { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
+        400 * 24 * 60 * 60
+      );
+
+      // Subscription lapses after the cookie was issued.
+      upsertSubscription({
+        userId: user.id,
+        providerSubscriptionId: 'ls-sub-lapse',
+        variantId: '200',
+        status: 'expired',
+        currentPeriodEnd: '2020-01-01T00:00:00.000Z',
+      });
+
+      const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
+
+      expect(res.statusCode).toBe(401);
+      const cleared = res.cookies.find((c) => c.name === 'sb_session');
+      expect(cleared?.value).toBe('');
+    });
+
+    it('reports entitled: true and refreshes the 400-day cookie for an active subscriber', async () => {
+      const user = createUser({ letterboxdId: 'session-lapse-2', letterboxdUsername: 'entitleduser', refreshToken: 'x' });
+      upsertSubscription({
+        userId: user.id,
+        providerSubscriptionId: 'ls-sub-active',
+        variantId: '200',
+        status: 'active',
+        currentPeriodEnd: '2099-01-01T00:00:00.000Z',
+      });
+      const token = await signUserToken(
+        { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
+        400 * 24 * 60 * 60
+      );
+
+      const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().entitled).toBe(true);
+      expect(res.cookies.find((c) => c.name === 'sb_session')?.maxAge).toBe(400 * 24 * 60 * 60);
     });
   });
 
