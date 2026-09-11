@@ -8,7 +8,7 @@ import ConfigurationModal from "./ConfigurationModal";
 import type { UserPreferences } from "../../types/preferences";
 import { readAuthKey, syncAddon, type SyncResult } from "../../lib/stremio-sync";
 import { readSession as readNuvioSession, syncAddon as syncNuvioAddon } from "../../lib/nuvio-sync";
-import { authHeaders, setInMemorySessionToken } from "../../lib/session-token";
+import { authHeaders, getInMemorySessionToken, setInMemorySessionToken } from "../../lib/session-token";
 
 const TOAST_DURATION = 3000;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
@@ -204,6 +204,7 @@ export default function Configure() {
 function ConfigureInner() {
   const searchParams = useSearchParams();
   const [confirmingCheckout, setConfirmingCheckout] = useState(searchParams.get("checkout") === "success");
+  const [checkoutNeedsLogin, setCheckoutNeedsLogin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [copied, setCopied] = useState(false);
@@ -522,15 +523,23 @@ function ConfigureInner() {
 
     let cancelled = false;
     const deadline = Date.now() + 20_000;
+    // The Lemon Squeezy redirect lands in a brand-new JS context, so a user who
+    // was not entitled before paying has no in-memory token and no cookie: the
+    // poll can never authenticate. Track whether any session exists at all and
+    // stop early with a "log back in" message instead of spinning for 20s.
+    let hasSession = getInMemorySessionToken() !== null;
 
     const poll = async () => {
-      while (!cancelled && Date.now() < deadline) {
+      for (;;) {
+        let answered = false;
         try {
           const res = await fetch(`${BACKEND_URL}/auth/session`, {
             credentials: "include",
             headers: authHeaders(),
           });
+          answered = true;
           if (res.ok) {
+            hasSession = true;
             const data = (await res.json()) as LoginResponse;
             if (data.entitled) {
               // Apply the fresh session (same mechanism as the mount-time restore)
@@ -542,10 +551,19 @@ function ConfigureInner() {
               }
               return;
             }
+          } else if (res.status === 401 || res.status === 403) {
+            hasSession = false;
           }
         } catch {
           // Transient network error while polling — just retry until the deadline.
         }
+        if (cancelled) return;
+        if (answered && !hasSession) {
+          // Confirmed logged out: further polling cannot succeed.
+          setCheckoutNeedsLogin(true);
+          return;
+        }
+        if (Date.now() >= deadline) break;
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
       if (!cancelled) setConfirmingCheckout(false);
@@ -1033,11 +1051,29 @@ function ConfigureInner() {
   if (confirmingCheckout) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center">
-        <div>
-          <p className="text-sm text-zinc-300">Confirming your payment…</p>
-          <p className="mt-2 text-[12px] text-zinc-500">
-            This can take a minute. If nothing happens, reload this page.
-          </p>
+        <div className="max-w-sm">
+          {checkoutNeedsLogin ? (
+            <>
+              <p className="text-sm text-zinc-300">Payment received. Thanks for supporting Stremboxd.</p>
+              <p className="mt-2 text-[12px] text-zinc-500">
+                Returning from checkout signs you out of this tab. Log back in to activate your supporter session.
+              </p>
+              <button
+                type="button"
+                onClick={() => setConfirmingCheckout(false)}
+                className="mt-5 w-full cursor-pointer rounded-xl bg-white px-4 py-3 text-[15px] font-semibold text-black transition-all hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-950"
+              >
+                Log in
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-zinc-300">Confirming your payment…</p>
+              <p className="mt-2 text-[12px] text-zinc-500">
+                This can take a minute. If nothing happens, reload this page.
+              </p>
+            </>
+          )}
         </div>
       </div>
     );

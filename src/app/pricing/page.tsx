@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useState } from "react";
+import TransitionLink from "../components/TransitionLink";
 import { getInMemorySessionToken } from "../../lib/session-token";
 import { startCheckout } from "../../lib/billing";
 
@@ -57,9 +58,13 @@ export default function PricingPage() {
         {!hasSessionHint && (
           <p className="mt-6 text-sm text-zinc-500">
             You need to be logged in to subscribe.{" "}
-            <a href="/configure" className="text-zinc-300 underline underline-offset-2 hover:text-white">
+            <TransitionLink
+              href="/configure"
+              direction="down"
+              className="text-zinc-300 underline underline-offset-2 hover:text-white"
+            >
               Log in on the configure page
-            </a>{" "}
+            </TransitionLink>{" "}
             first, then come back here.
           </p>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import TransitionLink from "../../components/TransitionLink";
 import {
   clearAuthKey,
   createLinkCode as createStremioLinkCode,
@@ -117,9 +118,13 @@ export function AccountLinkSection({
         <p className="mt-2 rounded-lg bg-amber-500/10 px-3.5 py-2.5 text-[12px] text-amber-300">
           Linked, but auto-sync needs a Stremboxd supporter subscription — your saves won&apos;t reach{" "}
           {stremioLinked && nuvioLinked ? "Stremio or Nuvio" : stremioLinked ? "Stremio" : "Nuvio"} until you{" "}
-          <a href="/pricing" className="underline underline-offset-2 hover:text-amber-200">
+          <TransitionLink
+            href="/pricing"
+            direction="up"
+            className="underline underline-offset-2 hover:text-amber-200"
+          >
             subscribe
-          </a>
+          </TransitionLink>
           .
         </p>
       )}

@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
+import TransitionLink from "../components/TransitionLink";
 
 export interface FAQItem {
   q: string;
   a: ReactNode;
+  /**
+   * Plain-text answer used for the schema.org FAQPage JSON-LD in layout.tsx.
+   * Required only when `a` is JSX: a React element cannot be serialised into
+   * readable structured data. Items whose `a` is already a string omit it.
+   */
+  aText?: string;
 }
 
 export const SECTIONS: { title: string; items: FAQItem[] }[] = [
@@ -101,12 +108,18 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
             It unlocks auto-sync (your Stremio/Nuvio addon updates itself whenever you save preferences, no
             reinstall needed) and a persistent session (no need to log back in every visit). Everything else stays
             free.{" "}
-            <a href="/pricing" className="text-zinc-300 underline underline-offset-2 hover:text-white">
+            <TransitionLink
+              href="/pricing"
+              direction="up"
+              className="text-zinc-300 underline underline-offset-2 hover:text-white"
+            >
               See pricing and subscribe
-            </a>
+            </TransitionLink>
             .
           </>
         ),
+        aText:
+          "It unlocks auto-sync (your Stremio/Nuvio addon updates itself whenever you save preferences, no reinstall needed) and a persistent session (no need to log back in every visit). Everything else stays free. See pricing and subscribe at stremboxd.com/pricing.",
       },
     ],
   },
