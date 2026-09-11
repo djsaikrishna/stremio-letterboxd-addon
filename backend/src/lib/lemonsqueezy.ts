@@ -44,6 +44,22 @@ export async function createCheckout(params: CreateCheckoutParams): Promise<stri
   return body.data.attributes.url;
 }
 
+export async function getSubscriptionPortalUrl(providerSubscriptionId: string): Promise<string> {
+  const response = await fetch(`${LEMONSQUEEZY_API_BASE}/subscriptions/${providerSubscriptionId}`, {
+    headers: {
+      Accept: 'application/vnd.api+json',
+      Authorization: `Bearer ${billingConfig.apiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Lemon Squeezy subscription lookup failed with status ${response.status}: ${await response.text()}`);
+  }
+
+  const body = (await response.json()) as { data: { attributes: { urls: { customer_portal: string } } } };
+  return body.data.attributes.urls.customer_portal;
+}
+
 export function verifyWebhookSignature(
   rawBody: Buffer,
   signatureHeader: string | undefined,

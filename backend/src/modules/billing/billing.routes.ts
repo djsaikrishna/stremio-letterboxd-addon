@@ -2,7 +2,13 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { verifyWebhookSignature } from '../../lib/lemonsqueezy.js';
 import { billingConfig } from '../../config/index.js';
-import { handleWebhookEvent, HANDLED_WEBHOOK_EVENTS, buildCheckoutUrl, type LemonSqueezyWebhookPayload } from './billing.service.js';
+import {
+  handleWebhookEvent,
+  HANDLED_WEBHOOK_EVENTS,
+  buildCheckoutUrl,
+  getPortalUrlForUser,
+  type LemonSqueezyWebhookPayload,
+} from './billing.service.js';
 import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 
 export async function billingRoutes(app: FastifyInstance) {
@@ -45,6 +51,21 @@ export async function billingRoutes(app: FastifyInstance) {
 
       const checkoutUrl = await buildCheckoutUrl(request.sessionUser!, parsed.data.variant);
       return { checkoutUrl };
+    }
+  );
+
+  app.get(
+    '/billing/portal',
+    {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      preHandler: sessionMiddleware,
+    },
+    async (request, reply) => {
+      const portalUrl = await getPortalUrlForUser(request.sessionUser!.id);
+      if (!portalUrl) {
+        return reply.status(404).send({ error: 'No subscription found' });
+      }
+      return reply.redirect(portalUrl, 302);
     }
   );
 }

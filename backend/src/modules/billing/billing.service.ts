@@ -1,8 +1,8 @@
-import { upsertSubscription } from '../../db/repositories/subscription.repository.js';
+import { upsertSubscription, findSubscriptionByUserId } from '../../db/repositories/subscription.repository.js';
 import { createChildLogger } from '../../lib/logger.js';
 import { refreshAccessToken, getCurrentUser } from '../letterboxd/letterboxd.client.js';
 import { getDecryptedRefreshToken, type User } from '../../db/repositories/user.repository.js';
-import { createCheckout } from '../../lib/lemonsqueezy.js';
+import { createCheckout, getSubscriptionPortalUrl } from '../../lib/lemonsqueezy.js';
 import { billingConfig } from '../../config/index.js';
 
 const logger = createChildLogger('billing-service');
@@ -79,4 +79,12 @@ export async function buildCheckoutUrl(user: User, variant: 'monthly' | 'yearly'
   const variantId = variant === 'yearly' ? billingConfig.variantIdYearly : billingConfig.variantIdMonthly;
   const email = await fetchEmailBestEffort(user);
   return createCheckout({ variantId, userId: user.id, email });
+}
+
+// ─── Portal ────────────────────────────────────────────────────────────────
+
+export async function getPortalUrlForUser(userId: string): Promise<string | null> {
+  const subscription = findSubscriptionByUserId(userId);
+  if (!subscription) return null;
+  return getSubscriptionPortalUrl(subscription.provider_subscription_id);
 }
