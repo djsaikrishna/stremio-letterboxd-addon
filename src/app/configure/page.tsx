@@ -531,9 +531,15 @@ function ConfigureInner() {
             headers: authHeaders(),
           });
           if (res.ok) {
-            const data = await res.json();
+            const data = (await res.json()) as LoginResponse;
             if (data.entitled) {
-              if (!cancelled) setConfirmingCheckout(false);
+              // Apply the fresh session (same mechanism as the mount-time restore)
+              // so the UI reflects the just-confirmed entitlement, not the stale
+              // pre-webhook snapshot taken when this page first loaded.
+              if (!cancelled) {
+                applyLoginResult(data);
+                setConfirmingCheckout(false);
+              }
               return;
             }
           }
