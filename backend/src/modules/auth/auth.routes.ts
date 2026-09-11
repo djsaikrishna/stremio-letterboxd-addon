@@ -177,9 +177,15 @@ export async function authRoutes(app: FastifyInstance) {
         throw error;
       }
 
-      // A cookie is only ever issued to an entitled user (see /auth/login), so
-      // reaching this point with entitled: false means the subscription lapsed
-      // after the cookie was already issued: revoke the session outright.
+      // A cookie is only ever issued to an entitled user (see /auth/login), and
+      // the frontend only calls this route to restore a cookie-backed session,
+      // so in practice reaching this point with entitled: false means the
+      // subscription lapsed after the cookie was already issued: revoke the
+      // session outright. Note sessionMiddleware also accepts a bearer token
+      // (see auth.middleware.ts) — a non-entitled bearer-only caller (who never
+      // had a cookie per Task 4's model) could technically hit this branch too;
+      // that's a harmless edge case, not a security issue, since it still ends
+      // in the same safe 401 denial.
       const subscription = findSubscriptionByUserId(user.id);
       const entitled = isEntitled(
         subscription
