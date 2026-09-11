@@ -27,6 +27,14 @@ export const jwtConfig = {
   ttl: config.JWT_TTL,
 } as const;
 
+export const billingConfig = {
+  apiKey: config.LEMONSQUEEZY_API_KEY,
+  storeId: config.LEMONSQUEEZY_STORE_ID,
+  variantIdMonthly: config.LEMONSQUEEZY_VARIANT_ID_MONTHLY,
+  variantIdYearly: config.LEMONSQUEEZY_VARIANT_ID_YEARLY,
+  webhookSecret: config.LEMONSQUEEZY_WEBHOOK_SECRET,
+} as const;
+
 export const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
 
 export const cacheConfig = {

@@ -22,6 +22,11 @@ export const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_TTL: z.string().default('30d'),
   DASHBOARD_PASSWORD: z.string().min(8, 'DASHBOARD_PASSWORD must be at least 8 characters'),
+  LEMONSQUEEZY_API_KEY: z.string().min(1),
+  LEMONSQUEEZY_STORE_ID: z.string().min(1),
+  LEMONSQUEEZY_VARIANT_ID_MONTHLY: z.string().min(1),
+  LEMONSQUEEZY_VARIANT_ID_YEARLY: z.string().min(1),
+  LEMONSQUEEZY_WEBHOOK_SECRET: z.string().min(1),
 
   DATABASE_PATH: z.string().default('./data/stremio-letterboxd.db'),
 

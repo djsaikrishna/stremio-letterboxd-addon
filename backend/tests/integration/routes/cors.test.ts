@@ -8,6 +8,11 @@ describe('CORS hardening', () => {
     ENCRYPTION_KEY: 'a'.repeat(64),
     JWT_SECRET: 'a'.repeat(32),
     DASHBOARD_PASSWORD: 'testpassword123',
+    LEMONSQUEEZY_API_KEY: 'test-api-key',
+    LEMONSQUEEZY_STORE_ID: '1',
+    LEMONSQUEEZY_VARIANT_ID_MONTHLY: '100',
+    LEMONSQUEEZY_VARIANT_ID_YEARLY: '200',
+    LEMONSQUEEZY_WEBHOOK_SECRET: 'test-webhook-secret',
   };
 
   it('accepts valid single origin', () => {
