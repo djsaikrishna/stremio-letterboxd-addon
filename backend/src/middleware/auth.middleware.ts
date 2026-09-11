@@ -41,6 +41,29 @@ export async function sessionMiddleware(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
+  const bearerToken = request.headers.authorization?.startsWith('Bearer ')
+    ? request.headers.authorization.slice(7)
+    : null;
+
+  // A bearer token can only be attached by JS that already has it, so it
+  // carries no cross-site-request-forgery risk the way a cookie does — the
+  // Origin check below only matters for the cookie path.
+  if (bearerToken) {
+    const payload = await verifyUserToken(bearerToken);
+    if (!payload) {
+      return reply.status(401).send({ error: 'Invalid or expired session', code: 'NO_SESSION' });
+    }
+
+    const user = findUserById(payload.sub);
+    if (!user || (payload.iat ?? 0) < user.session_epoch) {
+      return reply.status(401).send({ error: 'Invalid or expired session', code: 'NO_SESSION' });
+    }
+
+    request.userPayload = payload;
+    request.sessionUser = user;
+    return;
+  }
+
   // Defence in depth against CSRF: SameSite=Lax already keeps the cookie away
   // from cross-site requests, this rejects anything that claims a foreign origin.
   if (MUTATING_METHODS.has(request.method)) {

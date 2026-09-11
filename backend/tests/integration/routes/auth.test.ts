@@ -3,7 +3,30 @@ import { buildApp } from '../../../src/app.js';
 import { initDb, closeDb } from '../../../src/db/index.js';
 import { signUserToken } from '../../../src/lib/jwt.js';
 import { createUser } from '../../../src/db/repositories/user.repository.js';
+import { upsertSubscription } from '../../../src/db/repositories/subscription.repository.js';
 import type { FastifyInstance } from 'fastify';
+
+// loginUser talks to the real Letterboxd auth flow through this module —
+// mock it the same way tests/integration/routes/letterboxd.test.ts does, so
+// /auth/login can be exercised end-to-end without a configured API client.
+vi.mock('../../../src/modules/letterboxd/letterboxd.client.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/modules/letterboxd/letterboxd.client.js')>();
+  return {
+    ...actual,
+    authenticateWithPassword: vi.fn().mockResolvedValue({
+      access_token: 'test-access-token',
+      refresh_token: 'test-refresh-token',
+      expires_in: 3600,
+      token_type: 'Bearer',
+    }),
+    getCurrentUser: vi.fn().mockResolvedValue({
+      member: { id: 'lbxd-login-test', username: 'testuser', displayName: 'Test User' },
+    }),
+    createAuthenticatedClient: vi.fn().mockReturnValue({
+      getUserLists: vi.fn().mockResolvedValue({ items: [] }),
+    }),
+  };
+});
 
 const VALID_PREFERENCES = {
   catalogs: {
@@ -31,6 +54,53 @@ describe('auth routes', () => {
   afterAll(async () => {
     await app.close();
     closeDb();
+  });
+
+  describe('POST /auth/login', () => {
+    it('does not set a session cookie for a non-entitled user, and returns userToken in the body', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'testpass' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().entitled).toBe(false);
+      expect(res.json().userToken).toBeTypeOf('string');
+      expect(res.cookies.find((c) => c.name === 'sb_session')).toBeUndefined();
+    });
+
+    it('sets a 400-day session cookie and omits userToken for an entitled user', async () => {
+      // First login normally to create the user row, then attach an active
+      // subscription directly (the webhook path is covered by Task 3's tests).
+      const first = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'testpass' },
+      });
+      const userId = first.json().user.id as string;
+
+      upsertSubscription({
+        userId,
+        providerSubscriptionId: 'ls-sub-entitled-login',
+        variantId: '200',
+        status: 'active',
+        currentPeriodEnd: '2099-01-01T00:00:00.000Z',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'testpass' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().entitled).toBe(true);
+      expect(res.json().userToken).toBeUndefined();
+      const cookie = res.cookies.find((c) => c.name === 'sb_session');
+      expect(cookie).toBeDefined();
+      expect(cookie?.maxAge).toBe(400 * 24 * 60 * 60);
+    });
   });
 
   describe('POST /auth/preferences', () => {

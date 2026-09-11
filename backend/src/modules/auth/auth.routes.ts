@@ -6,6 +6,7 @@ import { signUserToken } from '../../lib/jwt.js';
 import { setSessionCookie, clearSessionCookie } from '../../lib/session-cookie.js';
 import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 import { config } from '../../config/index.js';
+import { ENTITLED_SESSION_TTL_SECONDS } from '../../lib/entitlement.js';
 import {
   getUserPreferences,
   revokeUserSessions,
@@ -125,9 +126,13 @@ export async function authRoutes(app: FastifyInstance) {
         const result = await loginUser(body.data.username, body.data.password, body.data.totp);
         trackEvent('login', result.user?.id);
 
-        // The token goes into an httpOnly cookie, never into the response body.
-        const { userToken, ...response } = result;
-        setSessionCookie(reply, userToken);
+        const { _cookieToken, ...response } = result as typeof result & { _cookieToken: string };
+
+        // Entitled users get a persistent httpOnly cookie; everyone else gets
+        // the raw token in the response body, held only in frontend memory.
+        if (result.entitled) {
+          setSessionCookie(reply, _cookieToken, ENTITLED_SESSION_TTL_SECONDS);
+        }
 
         return response;
       } catch (error) {

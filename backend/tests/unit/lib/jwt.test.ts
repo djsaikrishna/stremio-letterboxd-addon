@@ -35,6 +35,14 @@ describe('jwt (user + dashboard tokens)', () => {
       expect(result).toBeNull();
     });
 
+    it('accepts an explicit TTL override', async () => {
+      const token = await signUserToken(payload, 60);
+      vi.useFakeTimers();
+      vi.advanceTimersByTime(61_000);
+      const result = await verifyUserToken(token);
+      expect(result).toBeNull();
+    });
+
     it('rejects tampered token', async () => {
       const token = await signUserToken(payload);
       // Tamper with the payload portion (middle segment)

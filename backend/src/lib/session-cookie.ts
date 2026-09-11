@@ -17,10 +17,10 @@ const baseCookieOptions = {
   path: '/',
 } as const;
 
-export function setSessionCookie(reply: FastifyReply, token: string): void {
+export function setSessionCookie(reply: FastifyReply, token: string, ttlSeconds?: number): void {
   reply.setCookie(SESSION_COOKIE_NAME, token, {
     ...baseCookieOptions,
-    maxAge: parseTtl(jwtConfig.ttl),
+    maxAge: ttlSeconds ?? parseTtl(jwtConfig.ttl),
   });
 }
 

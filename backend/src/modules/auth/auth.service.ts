@@ -13,11 +13,14 @@ import {
 import { signUserToken } from '../../lib/jwt.js';
 import { config } from '../../config/index.js';
 import { createChildLogger } from '../../lib/logger.js';
+import { findSubscriptionByUserId } from '../../db/repositories/subscription.repository.js';
+import { isEntitled, ENTITLED_SESSION_TTL_SECONDS, type SubscriptionStatus } from '../../lib/entitlement.js';
 
 const logger = createChildLogger('auth-service');
 
 export interface AuthResult {
-  userToken: string;
+  userToken?: string; // present only when the user is not entitled (see below)
+  entitled: boolean;
   manifestUrl: string;
   user: {
     id: string;
@@ -96,11 +99,24 @@ export async function loginUser(
     tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
   });
 
-  const userToken = await signUserToken({
-    userId: user.id,
-    letterboxdId: user.letterboxd_id,
-    username: user.letterboxd_username,
-  });
+  const subscription = findSubscriptionByUserId(user.id);
+  const entitled = isEntitled(
+    subscription
+      ? {
+          status: subscription.status as SubscriptionStatus,
+          currentPeriodEnd: subscription.current_period_end,
+        }
+      : null
+  );
+
+  const signedToken = await signUserToken(
+    {
+      userId: user.id,
+      letterboxdId: user.letterboxd_id,
+      username: user.letterboxd_username,
+    },
+    entitled ? ENTITLED_SESSION_TTL_SECONDS : undefined
+  );
 
   // Fetch user's lists using the tokens we already have
   let lists: AuthResult['lists'] = [];
@@ -132,7 +148,8 @@ export async function loginUser(
   );
 
   return {
-    userToken,
+    userToken: entitled ? undefined : signedToken,
+    entitled,
     manifestUrl,
     user: {
       id: user.id,
@@ -141,5 +158,8 @@ export async function loginUser(
     },
     lists,
     preferences,
-  };
+    // Internal field, stripped by the route before the response is sent —
+    // see auth.routes.ts. Needed there to set the cookie for entitled users.
+    _cookieToken: signedToken,
+  } as AuthResult & { _cookieToken: string };
 }
