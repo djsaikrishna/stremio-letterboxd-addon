@@ -7,6 +7,7 @@ import ConfigurationModal from "./ConfigurationModal";
 import type { UserPreferences } from "../../types/preferences";
 import { readAuthKey, syncAddon, type SyncResult } from "../../lib/stremio-sync";
 import { readSession as readNuvioSession, syncAddon as syncNuvioAddon } from "../../lib/nuvio-sync";
+import { authHeaders, setInMemorySessionToken } from "../../lib/session-token";
 
 const TOAST_DURATION = 3000;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
@@ -25,6 +26,8 @@ interface LoginResponse {
     description?: string;
   }>;
   preferences: UserPreferences | null;
+  entitled: boolean;
+  userToken?: string;
 }
 
 interface LoginError {
@@ -57,6 +60,7 @@ interface PublicConfig {
 interface ToastItem {
   id: number;
   message: string;
+  tone: "error" | "upsell";
 }
 
 interface ResolvedList {
@@ -200,6 +204,7 @@ export default function Configure() {
   const [isStremioLinked, setIsStremioLinked] = useState(false);
   const [isNuvioLinked, setIsNuvioLinked] = useState(false);
   const [syncOutcome, setSyncOutcome] = useState<SyncResult | null>(null);
+  const [entitled, setEntitled] = useState(false);
 
   // Public (username-only) state
   const [usernameValidated, setUsernameValidated] = useState<UsernameValidation | null>(null);
@@ -281,7 +286,13 @@ export default function Configure() {
 
   const showErrorToast = (message: string) => {
     const id = ++toastIdRef.current;
-    setToasts((prev) => [...prev, { id, message }]);
+    setToasts((prev) => [...prev, { id, message, tone: "error" }]);
+    setTimeout(() => dismissToast(id), TOAST_DURATION);
+  };
+
+  const showUpsellToast = (message: string) => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message, tone: "upsell" }]);
     setTimeout(() => dismissToast(id), TOAST_DURATION);
   };
 
@@ -338,7 +349,7 @@ export default function Configure() {
     const response = await fetch(`${BACKEND_URL}${endpoint}`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     });
 
@@ -362,10 +373,14 @@ export default function Configure() {
             key={toast.id}
             className="pointer-events-auto animate-fade-in relative overflow-hidden rounded-xl border border-zinc-700/80 bg-black/95 px-4 py-3.5 shadow-2xl"
           >
-            <span className="absolute inset-y-0 left-0 w-0.5 bg-red-500/80" />
+            <span
+              className={`absolute inset-y-0 left-0 w-0.5 ${
+                toast.tone === "upsell" ? "bg-amber-500/80" : "bg-red-500/80"
+              }`}
+            />
             <div className="min-w-0 flex-1 pl-2 pr-8">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                Error
+                {toast.tone === "upsell" ? "Heads up" : "Error"}
               </p>
               <p className="mt-1 text-sm leading-relaxed text-zinc-100">{toast.message}</p>
             </div>
@@ -386,6 +401,10 @@ export default function Configure() {
   };
 
   const applyLoginResult = (loginResult: LoginResponse) => {
+    setInMemorySessionToken(
+      "userToken" in loginResult && typeof loginResult.userToken === "string" ? loginResult.userToken : null
+    );
+    setEntitled(loginResult.entitled);
     setResult(loginResult);
     const defaults = getDefaultPreferences(loginResult.lists);
     const prefs = loginResult.preferences
@@ -400,7 +419,7 @@ export default function Configure() {
       const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ username }),
       });
       const data = await response.json();
@@ -461,6 +480,7 @@ export default function Configure() {
       try {
         const response = await fetch(`${BACKEND_URL}/auth/session`, {
           credentials: "include",
+          headers: authHeaders(),
         });
 
         if (response.ok && !cancelled) {
@@ -502,7 +522,7 @@ export default function Configure() {
         const response = await fetch(`${BACKEND_URL}/auth/login`, {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ username, password }),
         });
 
@@ -524,7 +544,7 @@ export default function Configure() {
         const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ username }),
         });
 
@@ -566,7 +586,7 @@ export default function Configure() {
       const response = await fetch(`${BACKEND_URL}/auth/login`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ username, password, totp: totpCode.trim() }),
       });
 
@@ -596,7 +616,7 @@ export default function Configure() {
       const response = await fetch(`${BACKEND_URL}/auth/preferences`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ preferences }),
       });
 
@@ -606,6 +626,15 @@ export default function Configure() {
       const nuvioSession = readNuvioSession();
       if ((!authKey && !nuvioSession) || !result.manifestUrl) {
         setShowConfig(false);
+        return;
+      }
+
+      if (!entitled) {
+        setSyncOutcome(null);
+        setShowConfig(false);
+        showUpsellToast(
+          "Preferences saved. Auto-sync to Stremio/Nuvio requires a Stremboxd supporter subscription — reinstall the addon manually to pick up changes, or subscribe for automatic sync."
+        );
         return;
       }
 
@@ -652,7 +681,7 @@ export default function Configure() {
       const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ username }),
       });
       const data = await response.json();
@@ -719,7 +748,7 @@ export default function Configure() {
       fetch(`${BACKEND_URL}/auth/resolve-contributor-public`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ url }),
       })
         .then(async (r) => {
@@ -763,7 +792,7 @@ export default function Configure() {
       fetch(`${BACKEND_URL}/auth/resolve-contributor-public`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ url }),
       })
         .then(async (r) => {
@@ -934,9 +963,12 @@ export default function Configure() {
       await fetch(`${BACKEND_URL}/auth/logout`, {
         method: "POST",
         credentials: "include",
+        headers: authHeaders(),
       });
     } catch {
       // Best effort: the local state is cleared either way.
+    } finally {
+      setInMemorySessionToken(null);
     }
     handleReset();
   };
