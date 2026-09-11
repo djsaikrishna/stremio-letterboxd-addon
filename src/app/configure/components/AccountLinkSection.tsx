@@ -17,6 +17,8 @@ import {
   type LinkCode as NuvioLinkCode,
 } from "../../../lib/nuvio-sync";
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+
 type Provider = "stremio" | "nuvio";
 
 interface AccountLinkSectionProps {
@@ -24,6 +26,7 @@ interface AccountLinkSectionProps {
   onStremioLinkedChange: (linked: boolean) => void;
   nuvioLinked: boolean;
   onNuvioLinkedChange: (linked: boolean) => void;
+  entitled: boolean;
 }
 
 export function AccountLinkSection({
@@ -31,6 +34,7 @@ export function AccountLinkSection({
   onStremioLinkedChange,
   nuvioLinked,
   onNuvioLinkedChange,
+  entitled,
 }: AccountLinkSectionProps) {
   const [pairing, setPairing] = useState<Provider | null>(null);
   const [stremioCode, setStremioCode] = useState<StremioLinkCode | null>(null);
@@ -108,6 +112,17 @@ export function AccountLinkSection({
   return (
     <div className="mt-7">
       <h3 className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">Accounts</h3>
+
+      {(stremioLinked || nuvioLinked) && !entitled && (
+        <p className="mt-2 rounded-lg bg-amber-500/10 px-3.5 py-2.5 text-[12px] text-amber-300">
+          Linked, but auto-sync needs a Stremboxd supporter subscription — your saves won&apos;t reach{" "}
+          {stremioLinked && nuvioLinked ? "Stremio or Nuvio" : stremioLinked ? "Stremio" : "Nuvio"} until you{" "}
+          <a href="/pricing" className="underline underline-offset-2 hover:text-amber-200">
+            subscribe
+          </a>
+          .
+        </p>
+      )}
 
       {stremioLinked && nuvioLinked ? null : (
         <p className="mt-1 text-[11px] text-zinc-500">
@@ -187,6 +202,15 @@ export function AccountLinkSection({
             </LinkButton>
           )}
         </div>
+      )}
+
+      {entitled && (
+        <a
+          href={`${BACKEND_URL}/billing/portal`}
+          className="mt-3 inline-block text-[11px] text-zinc-500 underline underline-offset-2 transition-colors hover:text-zinc-200"
+        >
+          Manage subscription
+        </a>
       )}
 
       {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}

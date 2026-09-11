@@ -47,6 +47,7 @@ interface FullModeProps extends BaseProps {
   onStremioLinkedChange: (linked: boolean) => void;
   isNuvioLinked: boolean;
   onNuvioLinkedChange: (linked: boolean) => void;
+  entitled: boolean;
 }
 
 interface PublicModeProps extends BaseProps {
@@ -776,6 +777,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
               onStremioLinkedChange={(props as FullModeProps).onStremioLinkedChange}
               nuvioLinked={(props as FullModeProps).isNuvioLinked}
               onNuvioLinkedChange={(props as FullModeProps).onNuvioLinkedChange}
+              entitled={(props as FullModeProps).entitled}
             />
           )}
 

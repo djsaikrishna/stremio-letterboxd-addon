@@ -997,6 +997,7 @@ export default function Configure() {
           onStremioLinkedChange={setIsStremioLinked}
           isNuvioLinked={isNuvioLinked}
           onNuvioLinkedChange={setIsNuvioLinked}
+          entitled={entitled}
           externalListUrl={externalListUrl}
           onExternalListUrlChange={setExternalListUrl}
           onAddExternalList={handleResolveExternalList}

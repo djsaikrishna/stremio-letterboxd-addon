@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
+
 export interface FAQItem {
   q: string;
-  a: string;
+  a: ReactNode;
 }
 
 export const SECTIONS: { title: string; items: FAQItem[] }[] = [
@@ -91,6 +93,20 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
       {
         q: "Can I reorder or rename catalogs?",
         a: "Yes. In the configuration, drag any catalog card to reorder it, and the order is reflected in Stremio. Click the pencil icon on any card to rename it. Renaming is cosmetic only and doesn't change what the catalog contains.",
+      },
+      {
+        q: "What does the Stremboxd Supporter subscription do?",
+        a: (
+          <>
+            It unlocks auto-sync (your Stremio/Nuvio addon updates itself whenever you save preferences, no
+            reinstall needed) and a persistent session (no need to log back in every visit). Everything else stays
+            free.{" "}
+            <a href="/pricing" className="text-zinc-300 underline underline-offset-2 hover:text-white">
+              See pricing and subscribe
+            </a>
+            .
+          </>
+        ),
       },
     ],
   },
