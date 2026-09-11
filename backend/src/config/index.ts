@@ -35,6 +35,38 @@ export const billingConfig = {
   webhookSecret: config.LEMONSQUEEZY_WEBHOOK_SECRET,
 } as const;
 
+/**
+ * Billing is an optional integration: a deploy without Lemon Squeezy
+ * configured must still boot and serve the free addon. Routes under
+ * /billing check this before doing any work and return 503 when unset.
+ */
+export const isBillingConfigured =
+  Boolean(config.LEMONSQUEEZY_API_KEY) &&
+  Boolean(config.LEMONSQUEEZY_STORE_ID) &&
+  Boolean(config.LEMONSQUEEZY_VARIANT_ID_MONTHLY) &&
+  Boolean(config.LEMONSQUEEZY_VARIANT_ID_YEARLY) &&
+  Boolean(config.LEMONSQUEEZY_WEBHOOK_SECRET);
+
+export interface ResolvedBillingConfig {
+  apiKey: string;
+  storeId: string;
+  variantIdMonthly: string;
+  variantIdYearly: string;
+  webhookSecret: string;
+}
+
+/**
+ * Returns billingConfig narrowed to guaranteed-present strings. Throws if
+ * billing isn't configured — callers must only reach this after an
+ * `isBillingConfigured` guard (billing.routes.ts returns 503 first).
+ */
+export function requireBillingConfig(): ResolvedBillingConfig {
+  if (!isBillingConfigured) {
+    throw new Error('Billing is not configured');
+  }
+  return billingConfig as ResolvedBillingConfig;
+}
+
 export const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
 
 export const cacheConfig = {

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { verifyWebhookSignature } from '../../lib/lemonsqueezy.js';
-import { billingConfig } from '../../config/index.js';
+import { isBillingConfigured, requireBillingConfig } from '../../config/index.js';
 import {
   handleWebhookEvent,
   HANDLED_WEBHOOK_EVENTS,
@@ -16,8 +16,13 @@ export async function billingRoutes(app: FastifyInstance) {
     '/billing/webhook',
     { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
     async (request: FastifyRequest, reply) => {
+      if (!isBillingConfigured) {
+        return reply.status(503).send({ error: 'Billing is not configured' });
+      }
+      const billing = requireBillingConfig();
+
       const signature = request.headers['x-signature'] as string | undefined;
-      const valid = verifyWebhookSignature(request.rawBody ?? Buffer.alloc(0), signature, billingConfig.webhookSecret);
+      const valid = verifyWebhookSignature(request.rawBody ?? Buffer.alloc(0), signature, billing.webhookSecret);
 
       if (!valid) {
         return reply.status(401).send({ error: 'Invalid signature' });
@@ -44,6 +49,10 @@ export async function billingRoutes(app: FastifyInstance) {
       preHandler: sessionMiddleware,
     },
     async (request, reply) => {
+      if (!isBillingConfigured) {
+        return reply.status(503).send({ error: 'Billing is not configured' });
+      }
+
       const parsed = checkoutBodySchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Invalid variant' });
@@ -61,6 +70,10 @@ export async function billingRoutes(app: FastifyInstance) {
       preHandler: sessionMiddleware,
     },
     async (request, reply) => {
+      if (!isBillingConfigured) {
+        return reply.status(503).send({ error: 'Billing is not configured' });
+      }
+
       const portalUrl = await getPortalUrlForUser(request.sessionUser!.id);
       if (!portalUrl) {
         return reply.status(404).send({ error: 'No subscription found' });
