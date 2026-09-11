@@ -1,5 +1,9 @@
 import { upsertSubscription } from '../../db/repositories/subscription.repository.js';
 import { createChildLogger } from '../../lib/logger.js';
+import { refreshAccessToken, getCurrentUser } from '../letterboxd/letterboxd.client.js';
+import { getDecryptedRefreshToken, type User } from '../../db/repositories/user.repository.js';
+import { createCheckout } from '../../lib/lemonsqueezy.js';
+import { billingConfig } from '../../config/index.js';
 
 const logger = createChildLogger('billing-service');
 
@@ -50,4 +54,29 @@ export function handleWebhookEvent(payload: LemonSqueezyWebhookPayload): void {
     status: attributes.status,
     currentPeriodEnd,
   });
+}
+
+// ─── Checkout ──────────────────────────────────────────────────────────────
+
+/**
+ * Best-effort email lookup for checkout prefill. Never throws: any failure
+ * (revoked token, network error, missing email on the profile, etc.) just
+ * means checkout proceeds without a prefilled email.
+ */
+async function fetchEmailBestEffort(user: User): Promise<string | undefined> {
+  try {
+    const refreshToken = getDecryptedRefreshToken(user);
+    const tokens = await refreshAccessToken(refreshToken);
+    const profile = await getCurrentUser(tokens.access_token);
+    return profile.emailAddress;
+  } catch (err) {
+    logger.warn({ err, userId: user.id }, 'Could not fetch email for checkout prefill, continuing without it');
+    return undefined;
+  }
+}
+
+export async function buildCheckoutUrl(user: User, variant: 'monthly' | 'yearly'): Promise<string> {
+  const variantId = variant === 'yearly' ? billingConfig.variantIdYearly : billingConfig.variantIdMonthly;
+  const email = await fetchEmailBestEffort(user);
+  return createCheckout({ variantId, userId: user.id, email });
 }

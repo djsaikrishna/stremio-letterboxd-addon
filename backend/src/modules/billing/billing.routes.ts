@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { verifyWebhookSignature } from '../../lib/lemonsqueezy.js';
 import { billingConfig } from '../../config/index.js';
-import { handleWebhookEvent, HANDLED_WEBHOOK_EVENTS, type LemonSqueezyWebhookPayload } from './billing.service.js';
+import { handleWebhookEvent, HANDLED_WEBHOOK_EVENTS, buildCheckoutUrl, type LemonSqueezyWebhookPayload } from './billing.service.js';
+import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 
 export async function billingRoutes(app: FastifyInstance) {
   app.post(
@@ -24,6 +26,25 @@ export async function billingRoutes(app: FastifyInstance) {
 
       handleWebhookEvent(payload);
       return reply.status(200).send({ received: true });
+    }
+  );
+
+  const checkoutBodySchema = z.object({ variant: z.enum(['monthly', 'yearly']) });
+
+  app.post(
+    '/billing/checkout',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      preHandler: sessionMiddleware,
+    },
+    async (request, reply) => {
+      const parsed = checkoutBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid variant' });
+      }
+
+      const checkoutUrl = await buildCheckoutUrl(request.sessionUser!, parsed.data.variant);
+      return { checkoutUrl };
     }
   );
 }
