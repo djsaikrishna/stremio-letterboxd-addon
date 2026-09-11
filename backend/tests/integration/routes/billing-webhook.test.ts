@@ -59,7 +59,13 @@ describe('POST /billing/webhook', () => {
       meta: { event_name: 'subscription_created', custom_data: { user_id: user.id } },
       data: {
         id: 'ls-sub-1',
-        attributes: { status: 'active', variant_id: 100, renews_at: '2027-01-01T00:00:00.000000Z', ends_at: null },
+        attributes: {
+          status: 'active',
+          variant_id: 100,
+          renews_at: '2027-01-01T00:00:00.000000Z',
+          ends_at: null,
+          updated_at: '2026-01-01T00:00:00.000000Z',
+        },
       },
     });
 
@@ -89,7 +95,13 @@ describe('POST /billing/webhook', () => {
       meta: { event_name: 'subscription_created', custom_data: { user_id: user.id } },
       data: {
         id: 'ls-sub-2',
-        attributes: { status: 'active', variant_id: 200, renews_at: '2027-01-01T00:00:00.000000Z', ends_at: null },
+        attributes: {
+          status: 'active',
+          variant_id: 200,
+          renews_at: '2027-01-01T00:00:00.000000Z',
+          ends_at: null,
+          updated_at: '2026-01-01T00:00:00.000000Z',
+        },
       },
     });
     await app.inject({
@@ -103,7 +115,13 @@ describe('POST /billing/webhook', () => {
       meta: { event_name: 'subscription_cancelled', custom_data: { user_id: user.id } },
       data: {
         id: 'ls-sub-2',
-        attributes: { status: 'cancelled', variant_id: 200, renews_at: null, ends_at: '2026-12-01T00:00:00.000000Z' },
+        attributes: {
+          status: 'cancelled',
+          variant_id: 200,
+          renews_at: null,
+          ends_at: '2026-12-01T00:00:00.000000Z',
+          updated_at: '2026-01-02T00:00:00.000000Z',
+        },
       },
     });
     const res = await app.inject({
@@ -117,6 +135,92 @@ describe('POST /billing/webhook', () => {
     const sub = findSubscriptionByUserId(user.id);
     expect(sub?.status).toBe('cancelled');
     expect(sub?.current_period_end).toBe('2026-12-01T00:00:00.000000Z');
+  });
+
+  it('skips a stale/out-of-order event and leaves the stored row unchanged', async () => {
+    const user = createUser({
+      letterboxdId: 'billing-webhook-user-stale',
+      letterboxdUsername: 'billinguserstale',
+      refreshToken: 'fake-refresh-token',
+    });
+
+    const active = signedPayload({
+      meta: { event_name: 'subscription_created', custom_data: { user_id: user.id } },
+      data: {
+        id: 'ls-sub-stale',
+        attributes: {
+          status: 'active',
+          variant_id: 200,
+          renews_at: '2027-01-01T00:00:00.000000Z',
+          ends_at: null,
+          updated_at: '2026-05-01T00:00:00.000000Z',
+        },
+      },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-signature': active.signature },
+      payload: active.raw,
+    });
+
+    const beforeStaleWrite = findSubscriptionByUserId(user.id);
+    expect(beforeStaleWrite?.status).toBe('active');
+
+    // A delayed/replayed cancellation event with an OLDER updated_at than what
+    // is already stored must not be allowed to flip an active subscriber back
+    // to cancelled.
+    const staleCancellation = signedPayload({
+      meta: { event_name: 'subscription_cancelled', custom_data: { user_id: user.id } },
+      data: {
+        id: 'ls-sub-stale',
+        attributes: {
+          status: 'cancelled',
+          variant_id: 200,
+          renews_at: null,
+          ends_at: '2026-01-01T00:00:00.000000Z',
+          updated_at: '2026-01-01T00:00:00.000000Z', // older than the stored 2026-05-01
+        },
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-signature': staleCancellation.signature },
+      payload: staleCancellation.raw,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const sub = findSubscriptionByUserId(user.id);
+    expect(sub).toEqual(beforeStaleWrite);
+  });
+
+  it('acks with 200 when the DB write fails, e.g. a foreign-key violation for an unknown user', async () => {
+    const { raw, signature } = signedPayload({
+      meta: { event_name: 'subscription_created', custom_data: { user_id: 'does-not-exist' } },
+      data: {
+        id: 'ls-sub-missing-user',
+        attributes: {
+          status: 'active',
+          variant_id: 100,
+          renews_at: '2027-01-01T00:00:00.000000Z',
+          ends_at: null,
+          updated_at: '2026-01-01T00:00:00.000000Z',
+        },
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/billing/webhook',
+      headers: { 'content-type': 'application/json', 'x-signature': signature },
+      payload: raw,
+    });
+
+    // The FK violation is caught and logged, not surfaced as a 500 — Lemon
+    // Squeezy must not keep retrying an event that will never succeed.
+    expect(res.statusCode).toBe(200);
+    expect(findSubscriptionByUserId('does-not-exist')).toBeNull();
   });
 
   it('ignores an unhandled event without erroring', async () => {

@@ -3,7 +3,7 @@ import { createChildLogger } from '../../lib/logger.js';
 import { refreshAccessToken, getCurrentUser } from '../letterboxd/letterboxd.client.js';
 import { getDecryptedRefreshToken, type User } from '../../db/repositories/user.repository.js';
 import { createCheckout, getSubscriptionPortalUrl } from '../../lib/lemonsqueezy.js';
-import { billingConfig } from '../../config/index.js';
+import { requireBillingConfig } from '../../config/index.js';
 
 const logger = createChildLogger('billing-service');
 
@@ -19,6 +19,7 @@ export interface LemonSqueezyWebhookPayload {
       variant_id: number;
       renews_at: string | null;
       ends_at: string | null;
+      updated_at?: string | null;
     };
   };
 }
@@ -47,13 +48,25 @@ export function handleWebhookEvent(payload: LemonSqueezyWebhookPayload): void {
     return;
   }
 
-  upsertSubscription({
-    userId,
-    providerSubscriptionId: payload.data.id,
-    variantId: String(attributes.variant_id),
-    status: attributes.status,
-    currentPeriodEnd,
-  });
+  try {
+    upsertSubscription({
+      userId,
+      providerSubscriptionId: payload.data.id,
+      variantId: String(attributes.variant_id),
+      status: attributes.status,
+      currentPeriodEnd,
+      providerUpdatedAt: attributes.updated_at ?? null,
+    });
+  } catch (err) {
+    // A broken foreign-key reference (deleted/stale user) or a unique-constraint
+    // collision on provider_subscription_id is not something a retry will fix —
+    // log it and swallow it so the caller can still ack the webhook with 200,
+    // rather than letting Lemon Squeezy retry a permanently-broken event forever.
+    logger.error(
+      { err, userId, eventName: payload.meta.event_name, providerSubscriptionId: payload.data.id },
+      'Failed to persist subscription from webhook event'
+    );
+  }
 }
 
 // ─── Checkout ──────────────────────────────────────────────────────────────
@@ -76,7 +89,8 @@ async function fetchEmailBestEffort(user: User): Promise<string | undefined> {
 }
 
 export async function buildCheckoutUrl(user: User, variant: 'monthly' | 'yearly'): Promise<string> {
-  const variantId = variant === 'yearly' ? billingConfig.variantIdYearly : billingConfig.variantIdMonthly;
+  const billing = requireBillingConfig();
+  const variantId = variant === 'yearly' ? billing.variantIdYearly : billing.variantIdMonthly;
   const email = await fetchEmailBestEffort(user);
   return createCheckout({ variantId, userId: user.id, email });
 }
