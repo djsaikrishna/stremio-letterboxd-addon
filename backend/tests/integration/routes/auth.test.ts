@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { buildApp } from '../../../src/app.js';
 import { initDb, closeDb } from '../../../src/db/index.js';
 import { signUserToken } from '../../../src/lib/jwt.js';
 import { createUser } from '../../../src/db/repositories/user.repository.js';
-import { upsertSubscription } from '../../../src/db/repositories/subscription.repository.js';
 import type { FastifyInstance } from 'fastify';
 
 // loginUser talks to the real Letterboxd auth flow through this module —
@@ -34,6 +33,13 @@ vi.mock('../../../src/modules/letterboxd/letterboxd.client.js', async (importOri
   };
 });
 
+vi.mock('../../../src/modules/billing/billing.service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/modules/billing/billing.service.js')>();
+  return { ...actual, getEntitlement: vi.fn().mockResolvedValue(false) };
+});
+import { getEntitlement } from '../../../src/modules/billing/billing.service.js';
+const mockedEntitlement = vi.mocked(getEntitlement);
+
 const VALID_PREFERENCES = {
   catalogs: {
     watchlist: true,
@@ -62,6 +68,8 @@ describe('auth routes', () => {
     closeDb();
   });
 
+  beforeEach(() => mockedEntitlement.mockResolvedValue(false));
+
   describe('POST /auth/login', () => {
     it('does not set a session cookie for a non-entitled user, and returns userToken in the body', async () => {
       const res = await app.inject({
@@ -77,22 +85,7 @@ describe('auth routes', () => {
     });
 
     it('sets a 400-day session cookie and omits userToken for an entitled user', async () => {
-      // First login normally to create the user row, then attach an active
-      // subscription directly (the webhook path is covered by Task 3's tests).
-      const first = await app.inject({
-        method: 'POST',
-        url: '/auth/login',
-        payload: { username: 'testuser', password: 'testpass' },
-      });
-      const userId = first.json().user.id as string;
-
-      upsertSubscription({
-        userId,
-        providerSubscriptionId: 'ls-sub-entitled-login',
-        variantId: '200',
-        status: 'active',
-        currentPeriodEnd: '2099-01-01T00:00:00.000Z',
-      });
+      mockedEntitlement.mockResolvedValue(true);
 
       const res = await app.inject({
         method: 'POST',
@@ -106,6 +99,7 @@ describe('auth routes', () => {
       const cookie = res.cookies.find((c) => c.name === 'sb_session');
       expect(cookie).toBeDefined();
       expect(cookie?.maxAge).toBe(400 * 24 * 60 * 60);
+      expect(mockedEntitlement).toHaveBeenCalledWith(res.json().user.id, { fresh: true });
     });
   });
 
@@ -260,45 +254,40 @@ describe('auth routes', () => {
       expect(res.cookies.find((c) => c.name === 'sb_session')?.value).toBe('');
     });
 
-    it('revokes the session and returns 401 once the subscription is no longer entitled', async () => {
+    it('revokes the session with NOT_ENTITLED once the user is no longer a supporter', async () => {
       const user = createUser({ letterboxdId: 'session-lapse-1', letterboxdUsername: 'lapseuser', refreshToken: 'x' });
-      upsertSubscription({
-        userId: user.id,
-        providerSubscriptionId: 'ls-sub-lapse',
-        variantId: '200',
-        status: 'active',
-        currentPeriodEnd: '2099-01-01T00:00:00.000Z',
-      });
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
         400 * 24 * 60 * 60
       );
-
-      // Subscription lapses after the cookie was issued.
-      upsertSubscription({
-        userId: user.id,
-        providerSubscriptionId: 'ls-sub-lapse',
-        variantId: '200',
-        status: 'expired',
-        currentPeriodEnd: '2020-01-01T00:00:00.000Z',
-      });
+      mockedEntitlement.mockResolvedValue(false);
 
       const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
 
       expect(res.statusCode).toBe(401);
-      const cleared = res.cookies.find((c) => c.name === 'sb_session');
-      expect(cleared?.value).toBe('');
+      expect(res.json()).toMatchObject({ code: 'NOT_ENTITLED' });
+      expect(res.cookies.find((c) => c.name === 'sb_session')?.value).toBe('');
+    });
+
+    it('forces a Polar refresh when called with fresh=1', async () => {
+      const user = createUser({ letterboxdId: 'session-fresh-1', letterboxdUsername: 'freshuser', refreshToken: 'x' });
+      const token = await signUserToken({ userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username });
+      mockedEntitlement.mockResolvedValue(true);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/session?fresh=1',
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().entitled).toBe(true);
+      expect(mockedEntitlement).toHaveBeenCalledWith(user.id, { fresh: true });
     });
 
     it('reports entitled: true and refreshes the 400-day cookie for an active subscriber', async () => {
       const user = createUser({ letterboxdId: 'session-lapse-2', letterboxdUsername: 'entitleduser', refreshToken: 'x' });
-      upsertSubscription({
-        userId: user.id,
-        providerSubscriptionId: 'ls-sub-active',
-        variantId: '200',
-        status: 'active',
-        currentPeriodEnd: '2099-01-01T00:00:00.000Z',
-      });
+      mockedEntitlement.mockResolvedValue(true);
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
         400 * 24 * 60 * 60
@@ -309,6 +298,7 @@ describe('auth routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().entitled).toBe(true);
       expect(res.cookies.find((c) => c.name === 'sb_session')?.maxAge).toBe(400 * 24 * 60 * 60);
+      expect(mockedEntitlement).toHaveBeenCalledWith(user.id, { fresh: false });
     });
   });
 

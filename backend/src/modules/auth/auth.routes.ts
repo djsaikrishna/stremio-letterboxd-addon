@@ -6,8 +6,8 @@ import { signUserToken } from '../../lib/jwt.js';
 import { setSessionCookie, clearSessionCookie } from '../../lib/session-cookie.js';
 import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 import { config } from '../../config/index.js';
-import { isEntitled, ENTITLED_SESSION_TTL_SECONDS, type SubscriptionStatus } from '../../lib/entitlement.js';
-import { findSubscriptionByUserId } from '../../db/repositories/subscription.repository.js';
+import { ENTITLED_SESSION_TTL_SECONDS } from '../../lib/entitlement.js';
+import { getEntitlement } from '../billing/billing.service.js';
 import {
   getUserPreferences,
   revokeUserSessions,
@@ -177,28 +177,18 @@ export async function authRoutes(app: FastifyInstance) {
         throw error;
       }
 
-      // A cookie is only ever issued to an entitled user (see /auth/login), and
-      // the frontend only calls this route to restore a cookie-backed session,
-      // so in practice reaching this point with entitled: false means the
-      // subscription lapsed after the cookie was already issued: revoke the
-      // session outright. Note sessionMiddleware also accepts a bearer token
-      // (see auth.middleware.ts) — a non-entitled bearer-only caller (who never
-      // had a cookie per Task 4's model) could technically hit this branch too;
-      // that's a harmless edge case, not a security issue, since it still ends
-      // in the same safe 401 denial.
-      const subscription = findSubscriptionByUserId(user.id);
-      const entitled = isEntitled(
-        subscription
-          ? {
-              status: subscription.status as SubscriptionStatus,
-              currentPeriodEnd: subscription.current_period_end,
-            }
-          : null
-      );
+      // A cookie is only ever issued to a supporter (see /auth/login), so
+      // reaching this point with entitled: false means the subscription ended
+      // after the cookie was issued: revoke it. NOT_ENTITLED (not NO_SESSION)
+      // lets the post-checkout poll keep waiting for Polar instead of
+      // treating a valid, not-yet-upgraded bearer session as logged out.
+      // ?fresh=1 is sent only by that poll.
+      const fresh = (request.query as { fresh?: string }).fresh === '1';
+      const entitled = await getEntitlement(user.id, { fresh });
 
       if (!entitled) {
         clearSessionCookie(reply);
-        return reply.status(401).send({ error: 'Subscription no longer active', code: 'NO_SESSION' });
+        return reply.status(401).send({ error: 'Subscription no longer active', code: 'NOT_ENTITLED' });
       }
 
       // Sliding expiration: an active subscriber never hits the token TTL.

@@ -13,8 +13,8 @@ import {
 import { signUserToken } from '../../lib/jwt.js';
 import { config } from '../../config/index.js';
 import { createChildLogger } from '../../lib/logger.js';
-import { findSubscriptionByUserId } from '../../db/repositories/subscription.repository.js';
-import { isEntitled, ENTITLED_SESSION_TTL_SECONDS, type SubscriptionStatus } from '../../lib/entitlement.js';
+import { ENTITLED_SESSION_TTL_SECONDS } from '../../lib/entitlement.js';
+import { getEntitlement } from '../billing/billing.service.js';
 
 const logger = createChildLogger('auth-service');
 
@@ -99,15 +99,8 @@ export async function loginUser(
     tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
   });
 
-  const subscription = findSubscriptionByUserId(user.id);
-  const entitled = isEntitled(
-    subscription
-      ? {
-          status: subscription.status as SubscriptionStatus,
-          currentPeriodEnd: subscription.current_period_end,
-        }
-      : null
-  );
+  // A login is rare and decides the cookie TTL, so always ask Polar.
+  const entitled = await getEntitlement(user.id, { fresh: true });
 
   const signedToken = await signUserToken(
     {
