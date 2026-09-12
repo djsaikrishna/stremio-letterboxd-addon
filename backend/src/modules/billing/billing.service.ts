@@ -3,7 +3,10 @@ import { createChildLogger } from '../../lib/logger.js';
 import { refreshAccessToken, getCurrentUser } from '../letterboxd/letterboxd.client.js';
 import { getDecryptedRefreshToken, type User } from '../../db/repositories/user.repository.js';
 import { createCheckout, getSubscriptionPortalUrl } from '../../lib/lemonsqueezy.js';
-import { requireBillingConfig } from '../../config/index.js';
+import { requireBillingConfig, isPolarConfigured } from '../../config/index.js';
+import { getCustomerState } from '../../lib/polar.js';
+import { isSupporter } from '../../lib/entitlement.js';
+import { createCache } from '../../lib/cache.js';
 
 const logger = createChildLogger('billing-service');
 
@@ -101,4 +104,53 @@ export async function getPortalUrlForUser(userId: string): Promise<string | null
   const subscription = findSubscriptionByUserId(userId);
   if (!subscription) return null;
   return getSubscriptionPortalUrl(subscription.provider_subscription_id);
+}
+
+// ─── Entitlement ───────────────────────────────────────────────────────────
+
+const ENTITLEMENT_TTL_MS = 10 * 60 * 1000;
+const MIN_POLAR_CALL_INTERVAL_MS = 5 * 1000;
+
+interface EntitlementEntry {
+  entitled: boolean;
+  /** Last successful Polar answer (0 if never). */
+  fetchedAt: number;
+  /** Last Polar call, successful or not — throttles polling and outages. */
+  attemptedAt: number;
+}
+
+// ttl: 0 disables lru-cache expiry: freshness is checked by hand so the last
+// known value is still available as a fallback when Polar is down.
+const entitlementCache = createCache<EntitlementEntry>({ maxSize: 5000, ttl: 0 });
+
+export function clearEntitlementCache(): void {
+  entitlementCache.clear();
+}
+
+export async function getEntitlement(userId: string, options: { fresh?: boolean } = {}): Promise<boolean> {
+  if (!isPolarConfigured) return false;
+
+  const now = Date.now();
+  const entry = entitlementCache.get(userId);
+  if (entry) {
+    const recentlyAttempted = now - entry.attemptedAt < MIN_POLAR_CALL_INTERVAL_MS;
+    const upToDate = now - entry.fetchedAt < ENTITLEMENT_TTL_MS;
+    if (recentlyAttempted || (upToDate && !options.fresh)) {
+      return entry.entitled;
+    }
+  }
+
+  try {
+    const entitled = isSupporter(await getCustomerState(userId));
+    entitlementCache.set(userId, { entitled, fetchedAt: now, attemptedAt: now });
+    return entitled;
+  } catch (err) {
+    const entitled = entry?.entitled ?? false;
+    logger.warn(
+      { userId, reason: err instanceof Error ? err.message : 'unknown' },
+      'Polar customer state lookup failed, using last known entitlement'
+    );
+    entitlementCache.set(userId, { entitled, fetchedAt: entry?.fetchedAt ?? 0, attemptedAt: now });
+    return entitled;
+  }
 }
