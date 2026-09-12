@@ -45,10 +45,30 @@ const MIN_POLAR_CALL_INTERVAL_MS = 5 * 1000;
 
 interface EntitlementEntry {
   entitled: boolean;
+  /**
+   * True when `entitled` reflects a genuine, current Polar answer (a fresh
+   * call, or a value still within ENTITLEMENT_TTL_MS of one); false when it
+   * is a degraded fallback — Polar failed and we fell back to a stale or
+   * absent cached value. Carried forward as-is when a cache hit skips
+   * calling Polar again.
+   */
+  trustworthy: boolean;
   /** Last successful Polar answer (0 if never). */
   fetchedAt: number;
   /** Last Polar call, successful or not — throttles polling and outages. */
   attemptedAt: number;
+}
+
+export interface EntitlementStatus {
+  entitled: boolean;
+  /**
+   * False means this answer is NOT a real "no" from Polar — it's what we
+   * fell back to after a failed/unreachable lookup. Callers that would take
+   * a destructive action on a negative answer (e.g. revoking a session)
+   * must check this before doing so; callers that only gate a feature can
+   * ignore it, since fail-closed is the correct default there.
+   */
+  trustworthy: boolean;
 }
 
 // ttl: 0 disables lru-cache expiry: freshness is checked by hand so the last
@@ -59,8 +79,17 @@ export function clearEntitlementCache(): void {
   entitlementCache.clear();
 }
 
-export async function getEntitlement(userId: string, options: { fresh?: boolean } = {}): Promise<boolean> {
-  if (!isPolarConfigured) return false;
+/**
+ * Full entitlement answer, including whether it's a trustworthy Polar
+ * response or a degraded fallback. Use this wherever a negative answer
+ * triggers a destructive action (e.g. clearing a session cookie) — see
+ * getEntitlement() below for the simple boolean case.
+ */
+export async function getEntitlementStatus(
+  userId: string,
+  options: { fresh?: boolean } = {}
+): Promise<EntitlementStatus> {
+  if (!isPolarConfigured) return { entitled: false, trustworthy: true };
 
   const now = Date.now();
   const entry = entitlementCache.get(userId);
@@ -68,21 +97,37 @@ export async function getEntitlement(userId: string, options: { fresh?: boolean 
     const recentlyAttempted = now - entry.attemptedAt < MIN_POLAR_CALL_INTERVAL_MS;
     const upToDate = now - entry.fetchedAt < ENTITLEMENT_TTL_MS;
     if (recentlyAttempted || (upToDate && !options.fresh)) {
-      return entry.entitled;
+      return { entitled: entry.entitled, trustworthy: entry.trustworthy };
     }
   }
 
   try {
     const entitled = isSupporter(await getCustomerState(userId));
-    entitlementCache.set(userId, { entitled, fetchedAt: now, attemptedAt: now });
-    return entitled;
+    entitlementCache.set(userId, { entitled, trustworthy: true, fetchedAt: now, attemptedAt: now });
+    return { entitled, trustworthy: true };
   } catch (err) {
     const entitled = entry?.entitled ?? false;
     logger.warn(
       { userId, reason: err instanceof Error ? err.message : 'unknown' },
       'Polar customer state lookup failed, using last known entitlement'
     );
-    entitlementCache.set(userId, { entitled, fetchedAt: entry?.fetchedAt ?? 0, attemptedAt: now });
-    return entitled;
+    entitlementCache.set(userId, {
+      entitled,
+      trustworthy: false,
+      fetchedAt: entry?.fetchedAt ?? 0,
+      attemptedAt: now,
+    });
+    return { entitled, trustworthy: false };
   }
+}
+
+/**
+ * Simple boolean entitlement check for callers that only gate a feature and
+ * don't take a destructive action on a negative answer (fail-closed is the
+ * correct, spec-sanctioned behavior there — e.g. login just skips issuing a
+ * persistent cookie). See getEntitlementStatus() for callers that need to
+ * tell a real "no" apart from "we don't know".
+ */
+export async function getEntitlement(userId: string, options: { fresh?: boolean } = {}): Promise<boolean> {
+  return (await getEntitlementStatus(userId, options)).entitled;
 }

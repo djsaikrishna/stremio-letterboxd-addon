@@ -35,10 +35,20 @@ vi.mock('../../../src/modules/letterboxd/letterboxd.client.js', async (importOri
 
 vi.mock('../../../src/modules/billing/billing.service.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/modules/billing/billing.service.js')>();
-  return { ...actual, getEntitlement: vi.fn().mockResolvedValue(false) };
+  return {
+    ...actual,
+    // Used by /auth/login (auth.service.ts) — unrelated to the route-level
+    // trustworthy/untrustworthy distinction, kept as a plain boolean mock.
+    getEntitlement: vi.fn().mockResolvedValue(false),
+    // Used by /auth/session (auth.routes.ts) — carries whether the answer is
+    // a genuine Polar response or a degraded fallback (see billing.service.ts).
+    getEntitlementStatus: vi.fn().mockResolvedValue({ entitled: false, trustworthy: true }),
+  };
 });
-import { getEntitlement } from '../../../src/modules/billing/billing.service.js';
+import { getEntitlement, getEntitlementStatus } from '../../../src/modules/billing/billing.service.js';
+import * as catalogFetcherService from '../../../src/modules/stremio/catalog/catalog-fetcher.service.js';
 const mockedEntitlement = vi.mocked(getEntitlement);
+const mockedEntitlementStatus = vi.mocked(getEntitlementStatus);
 
 const VALID_PREFERENCES = {
   catalogs: {
@@ -68,7 +78,10 @@ describe('auth routes', () => {
     closeDb();
   });
 
-  beforeEach(() => mockedEntitlement.mockResolvedValue(false));
+  beforeEach(() => {
+    mockedEntitlement.mockResolvedValue(false);
+    mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: true });
+  });
 
   describe('POST /auth/login', () => {
     it('does not set a session cookie for a non-entitled user, and returns userToken in the body', async () => {
@@ -260,7 +273,7 @@ describe('auth routes', () => {
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
         400 * 24 * 60 * 60
       );
-      mockedEntitlement.mockResolvedValue(false);
+      mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: true });
 
       const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
 
@@ -269,10 +282,43 @@ describe('auth routes', () => {
       expect(res.cookies.find((c) => c.name === 'sb_session')?.value).toBe('');
     });
 
+    it('denies but does NOT clear the cookie when entitlement is unknown (Polar outage, nothing trustworthy cached)', async () => {
+      const user = createUser({ letterboxdId: 'session-degraded-1', letterboxdUsername: 'degradeduser', refreshToken: 'x' });
+      const token = await signUserToken(
+        { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
+        400 * 24 * 60 * 60
+      );
+      mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: false });
+
+      const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toMatchObject({ code: 'NOT_ENTITLED' });
+      // Unlike a genuine negative answer, a degraded/unknown one must not
+      // destroy an otherwise-valid 400-day session cookie.
+      expect(res.cookies.find((c) => c.name === 'sb_session')).toBeUndefined();
+    });
+
+    it('short-circuits before the list fetch when NOT_ENTITLED (no wasted token refresh)', async () => {
+      const fetchSpy = vi.spyOn(catalogFetcherService, 'fetchUserLists');
+      const user = createUser({ letterboxdId: 'session-shortcircuit-1', letterboxdUsername: 'shortcircuituser', refreshToken: 'x' });
+      const token = await signUserToken(
+        { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
+        400 * 24 * 60 * 60
+      );
+      mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: true });
+
+      const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
+
+      expect(res.statusCode).toBe(401);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+
     it('forces a Polar refresh when called with fresh=1', async () => {
       const user = createUser({ letterboxdId: 'session-fresh-1', letterboxdUsername: 'freshuser', refreshToken: 'x' });
       const token = await signUserToken({ userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username });
-      mockedEntitlement.mockResolvedValue(true);
+      mockedEntitlementStatus.mockResolvedValue({ entitled: true, trustworthy: true });
 
       const res = await app.inject({
         method: 'GET',
@@ -282,12 +328,12 @@ describe('auth routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().entitled).toBe(true);
-      expect(mockedEntitlement).toHaveBeenCalledWith(user.id, { fresh: true });
+      expect(mockedEntitlementStatus).toHaveBeenCalledWith(user.id, { fresh: true });
     });
 
     it('reports entitled: true and refreshes the 400-day cookie for an active subscriber', async () => {
       const user = createUser({ letterboxdId: 'session-lapse-2', letterboxdUsername: 'entitleduser', refreshToken: 'x' });
-      mockedEntitlement.mockResolvedValue(true);
+      mockedEntitlementStatus.mockResolvedValue({ entitled: true, trustworthy: true });
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
         400 * 24 * 60 * 60
@@ -298,7 +344,7 @@ describe('auth routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().entitled).toBe(true);
       expect(res.cookies.find((c) => c.name === 'sb_session')?.maxAge).toBe(400 * 24 * 60 * 60);
-      expect(mockedEntitlement).toHaveBeenCalledWith(user.id, { fresh: false });
+      expect(mockedEntitlementStatus).toHaveBeenCalledWith(user.id, { fresh: false });
     });
   });
 

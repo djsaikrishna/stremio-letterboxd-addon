@@ -7,7 +7,7 @@ import { setSessionCookie, clearSessionCookie } from '../../lib/session-cookie.j
 import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 import { config } from '../../config/index.js';
 import { ENTITLED_SESSION_TTL_SECONDS } from '../../lib/entitlement.js';
-import { getEntitlement } from '../billing/billing.service.js';
+import { getEntitlementStatus } from '../billing/billing.service.js';
 import {
   getUserPreferences,
   revokeUserSessions,
@@ -163,6 +163,31 @@ export async function authRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const user = request.sessionUser!;
 
+      // Checked before the list-fetch round trip below: during the
+      // post-checkout poll (?fresh=1, every 2s for up to 20s) most
+      // iterations come back NOT_ENTITLED, and there's no point paying for a
+      // token refresh + list fetch on every one of those just to discard it.
+      //
+      // A cookie is only ever issued to a supporter (see /auth/login), so
+      // reaching this point with entitled: false means the subscription
+      // ended after the cookie was issued — normally that should revoke it.
+      // But `entitled` can also be false because Polar was unreachable and
+      // nothing trustworthy was cached (trustworthy: false): that is NOT a
+      // real "no", and must not destroy an otherwise-valid 400-day session
+      // cookie over a transient outage. Either way the request is still
+      // denied (NOT_ENTITLED, not NO_SESSION) so the post-checkout poll
+      // keeps waiting for Polar instead of treating a valid, not-yet-
+      // upgraded bearer session as logged out.
+      const fresh = (request.query as { fresh?: string }).fresh === '1';
+      const { entitled, trustworthy } = await getEntitlementStatus(user.id, { fresh });
+
+      if (!entitled) {
+        if (trustworthy) {
+          clearSessionCookie(reply);
+        }
+        return reply.status(401).send({ error: 'Subscription no longer active', code: 'NOT_ENTITLED' });
+      }
+
       let lists;
       try {
         lists = await fetchUserLists(user);
@@ -175,20 +200,6 @@ export async function authRoutes(app: FastifyInstance) {
             .send({ error: 'Letterboxd session expired', code: 'SESSION_EXPIRED' });
         }
         throw error;
-      }
-
-      // A cookie is only ever issued to a supporter (see /auth/login), so
-      // reaching this point with entitled: false means the subscription ended
-      // after the cookie was issued: revoke it. NOT_ENTITLED (not NO_SESSION)
-      // lets the post-checkout poll keep waiting for Polar instead of
-      // treating a valid, not-yet-upgraded bearer session as logged out.
-      // ?fresh=1 is sent only by that poll.
-      const fresh = (request.query as { fresh?: string }).fresh === '1';
-      const entitled = await getEntitlement(user.id, { fresh });
-
-      if (!entitled) {
-        clearSessionCookie(reply);
-        return reply.status(401).send({ error: 'Subscription no longer active', code: 'NOT_ENTITLED' });
       }
 
       // Sliding expiration: an active subscriber never hits the token TTL.
