@@ -23,13 +23,7 @@ export const envSchema = z.object({
   JWT_TTL: z.string().default('30d'),
   DASHBOARD_PASSWORD: z.string().min(8, 'DASHBOARD_PASSWORD must be at least 8 characters'),
   // Billing is an optional integration: an unconfigured deploy must still
-  // boot and serve the free addon. billing.routes.ts returns 503 on the
-  // billing-specific routes when these are unset — see config/index.ts.
-  LEMONSQUEEZY_API_KEY: z.string().min(1).optional(),
-  LEMONSQUEEZY_STORE_ID: z.string().min(1).optional(),
-  LEMONSQUEEZY_VARIANT_ID_MONTHLY: z.string().min(1).optional(),
-  LEMONSQUEEZY_VARIANT_ID_YEARLY: z.string().min(1).optional(),
-  LEMONSQUEEZY_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // boot and serve the free addon — see isPolarConfigured in config/index.ts.
   POLAR_ACCESS_TOKEN: z.string().min(1).optional(),
   POLAR_PRODUCT_ID_YEARLY: z.string().min(1).optional(),
   POLAR_PRODUCT_ID_MONTHLY: z.string().min(1).optional(),

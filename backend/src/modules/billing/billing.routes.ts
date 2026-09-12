@@ -1,47 +1,12 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { z } from 'zod';
-import { verifyWebhookSignature } from '../../lib/lemonsqueezy.js';
-import { isBillingConfigured, requireBillingConfig } from '../../config/index.js';
-import {
-  handleWebhookEvent,
-  HANDLED_WEBHOOK_EVENTS,
-  buildCheckoutUrl,
-  getPortalUrlForUser,
-  type LemonSqueezyWebhookPayload,
-} from './billing.service.js';
+import type { FastifyInstance } from 'fastify';
+import { isPolarConfigured } from '../../config/index.js';
 import { sessionMiddleware } from '../../middleware/auth.middleware.js';
+import { createChildLogger } from '../../lib/logger.js';
+import { startCheckout, getPortalUrl } from './billing.service.js';
+
+const logger = createChildLogger('billing-routes');
 
 export async function billingRoutes(app: FastifyInstance) {
-  app.post(
-    '/billing/webhook',
-    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
-    async (request: FastifyRequest, reply) => {
-      if (!isBillingConfigured) {
-        return reply.status(503).send({ error: 'Billing is not configured' });
-      }
-      const billing = requireBillingConfig();
-
-      const signature = request.headers['x-signature'] as string | undefined;
-      const valid = verifyWebhookSignature(request.rawBody ?? Buffer.alloc(0), signature, billing.webhookSecret);
-
-      if (!valid) {
-        return reply.status(401).send({ error: 'Invalid signature' });
-      }
-
-      const payload = request.body as LemonSqueezyWebhookPayload;
-      const eventName = payload.meta?.event_name;
-
-      if (!eventName || !HANDLED_WEBHOOK_EVENTS.has(eventName)) {
-        return reply.status(200).send({ ignored: true });
-      }
-
-      handleWebhookEvent(payload);
-      return reply.status(200).send({ received: true });
-    }
-  );
-
-  const checkoutBodySchema = z.object({ variant: z.enum(['monthly', 'yearly']) });
-
   app.post(
     '/billing/checkout',
     {
@@ -49,17 +14,18 @@ export async function billingRoutes(app: FastifyInstance) {
       preHandler: sessionMiddleware,
     },
     async (request, reply) => {
-      if (!isBillingConfigured) {
+      if (!isPolarConfigured) {
         return reply.status(503).send({ error: 'Billing is not configured' });
       }
 
-      const parsed = checkoutBodySchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ error: 'Invalid variant' });
+      // No body is read: the Polar customer is always the session user.
+      try {
+        const url = await startCheckout(request.sessionUser!);
+        return { url };
+      } catch (err) {
+        logger.error({ userId: request.sessionUser!.id, reason: err instanceof Error ? err.message : 'unknown' }, 'Checkout creation failed');
+        return reply.status(502).send({ error: 'Could not start checkout' });
       }
-
-      const checkoutUrl = await buildCheckoutUrl(request.sessionUser!, parsed.data.variant);
-      return { checkoutUrl };
     }
   );
 
@@ -70,11 +36,18 @@ export async function billingRoutes(app: FastifyInstance) {
       preHandler: sessionMiddleware,
     },
     async (request, reply) => {
-      if (!isBillingConfigured) {
+      if (!isPolarConfigured) {
         return reply.status(503).send({ error: 'Billing is not configured' });
       }
 
-      const portalUrl = await getPortalUrlForUser(request.sessionUser!.id);
+      let portalUrl: string | null;
+      try {
+        portalUrl = await getPortalUrl(request.sessionUser!.id);
+      } catch (err) {
+        logger.error({ userId: request.sessionUser!.id, reason: err instanceof Error ? err.message : 'unknown' }, 'Portal session creation failed');
+        return reply.status(502).send({ error: 'Could not open the subscription portal' });
+      }
+
       if (!portalUrl) {
         return reply.status(404).send({ error: 'No subscription found' });
       }

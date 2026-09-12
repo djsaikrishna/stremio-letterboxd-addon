@@ -15,12 +15,6 @@ import { billingRoutes } from './modules/billing/billing.routes.js';
 import { generateBaseManifest } from './modules/stremio/stremio.service.js';
 import { startMemoryGuard } from './lib/memory-guard.js';
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    rawBody?: Buffer;
-  }
-}
-
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="8" fill="#0a0a0a"/>
   <circle cx="8" cy="16" r="3" fill="#ffffff"/>
@@ -81,10 +75,9 @@ export async function buildApp(httpsOptions?: ServerOptions) {
 
   await app.register(cookie);
 
-  // Stash the exact request bytes before JSON-parsing them: the billing
-  // webhook needs them unmodified to verify Lemon Squeezy's HMAC signature.
+  // Accept an empty JSON body (e.g. POST /billing/checkout sends none) instead
+  // of Fastify's default 400 on empty application/json payloads.
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request, body, done) => {
-    request.rawBody = body as Buffer;
     if ((body as Buffer).length === 0) {
       done(null, {});
       return;
