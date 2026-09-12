@@ -30,6 +30,11 @@ export const envSchema = z.object({
   LEMONSQUEEZY_VARIANT_ID_MONTHLY: z.string().min(1).optional(),
   LEMONSQUEEZY_VARIANT_ID_YEARLY: z.string().min(1).optional(),
   LEMONSQUEEZY_WEBHOOK_SECRET: z.string().min(1).optional(),
+  POLAR_ACCESS_TOKEN: z.string().min(1).optional(),
+  POLAR_PRODUCT_ID_YEARLY: z.string().min(1).optional(),
+  POLAR_PRODUCT_ID_MONTHLY: z.string().min(1).optional(),
+  POLAR_SERVER: z.enum(['production', 'sandbox']).default('production'),
+  FRONTEND_URL: z.string().url().default('https://stremboxd.com'),
 
   DATABASE_PATH: z.string().default('./data/stremio-letterboxd.db'),
 

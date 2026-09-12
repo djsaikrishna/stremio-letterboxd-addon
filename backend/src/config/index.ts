@@ -67,6 +67,40 @@ export function requireBillingConfig(): ResolvedBillingConfig {
   return billingConfig as ResolvedBillingConfig;
 }
 
+export const polarConfig = {
+  accessToken: config.POLAR_ACCESS_TOKEN,
+  productIdYearly: config.POLAR_PRODUCT_ID_YEARLY,
+  productIdMonthly: config.POLAR_PRODUCT_ID_MONTHLY,
+  server: config.POLAR_SERVER,
+  frontendUrl: config.FRONTEND_URL,
+} as const;
+
+/**
+ * Billing is an optional integration: a deploy without Polar configured must
+ * still boot and serve the free addon. Billing routes return 503 and
+ * entitlement resolves to false when this is unset.
+ */
+export const isPolarConfigured =
+  Boolean(config.POLAR_ACCESS_TOKEN) &&
+  Boolean(config.POLAR_PRODUCT_ID_YEARLY) &&
+  Boolean(config.POLAR_PRODUCT_ID_MONTHLY);
+
+export interface ResolvedPolarConfig {
+  accessToken: string;
+  productIdYearly: string;
+  productIdMonthly: string;
+  server: 'production' | 'sandbox';
+  frontendUrl: string;
+}
+
+/** Throws if Polar isn't configured — callers must check `isPolarConfigured` first. */
+export function requirePolarConfig(): ResolvedPolarConfig {
+  if (!isPolarConfigured) {
+    throw new Error('Billing is not configured');
+  }
+  return polarConfig as ResolvedPolarConfig;
+}
+
 export const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
 
 export const cacheConfig = {
