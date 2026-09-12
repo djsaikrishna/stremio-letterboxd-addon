@@ -101,6 +101,11 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
         q: "Can I reorder or rename catalogs?",
         a: "Yes. In the configuration, drag any catalog card to reorder it, and the order is reflected in Stremio. Click the pencil icon on any card to rename it. Renaming is cosmetic only and doesn't change what the catalog contains.",
       },
+    ],
+  },
+  {
+    title: "Supporter",
+    items: [
       {
         q: "What does the Stremboxd Supporter subscription do?",
         a: (
@@ -120,6 +125,32 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
         ),
         aText:
           "It unlocks auto-sync (your Stremio/Nuvio addon updates itself whenever you save preferences, no reinstall needed) and a persistent session (no need to log back in every visit). Everything else stays free. See pricing and subscribe at stremboxd.com/pricing.",
+      },
+      {
+        q: "Do I need an account to subscribe?",
+        a: (
+          <>
+            Yes. Log in with your Letterboxd password on the{" "}
+            <TransitionLink
+              href="/configure"
+              direction="up"
+              className="text-zinc-300 underline underline-offset-2 hover:text-white"
+            >
+              configure page
+            </TransitionLink>{" "}
+            first. The subscription is tied to the account you&apos;re logged in with.
+          </>
+        ),
+        aText:
+          "Yes. Log in with your Letterboxd password on the configure page first. The subscription is tied to the account you're logged in with.",
+      },
+      {
+        q: "When do the features activate?",
+        a: "Right after you pay. The checkout opens on top of the pricing page, and once the payment goes through you land on the configure page with auto-sync and the persistent session unlocked. If it takes more than a few seconds, reload the configure page.",
+      },
+      {
+        q: "How do I cancel, change plan or get an invoice?",
+        a: "Log in on the configure page and click \"Manage subscription\". It opens your billing portal, where you can cancel, switch between monthly and yearly, update your card and download invoices. After cancelling, you keep auto-sync and the persistent session until the end of the period you paid for.",
       },
     ],
   },
@@ -169,7 +200,7 @@ export const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: "Is it free?",
-        a: "Yes, completely free and open-source.",
+        a: "The addon is free and open-source: catalogs, lists, ratings and actions cost nothing. Two extra features, auto-sync and a persistent session, need a supporter subscription.",
       },
     ],
   },
