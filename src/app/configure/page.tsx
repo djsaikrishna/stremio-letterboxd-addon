@@ -516,24 +516,25 @@ function ConfigureInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // After a Lemon Squeezy checkout redirect (?checkout=success), poll for the
-  // webhook-driven entitlement to land instead of showing a stale unpaid UI.
+  // After a checkout (?checkout=success), poll until Polar reports the
+  // subscription instead of showing a stale unpaid UI.
   useEffect(() => {
     if (!confirmingCheckout) return;
 
     let cancelled = false;
     const deadline = Date.now() + 20_000;
-    // The Lemon Squeezy redirect lands in a brand-new JS context, so a user who
-    // was not entitled before paying has no in-memory token and no cookie: the
-    // poll can never authenticate. Track whether any session exists at all and
-    // stop early with a "log back in" message instead of spinning for 20s.
+    // The overlay checkout keeps this JS context (and its in-memory token).
+    // A redirect fallback lands in a brand-new one with no token and, for a
+    // user who was not a supporter yet, no cookie: the poll can never
+    // authenticate. Track whether any session exists and stop early with a
+    // "log back in" message instead of spinning for 20s.
     let hasSession = getInMemorySessionToken() !== null;
 
     const poll = async () => {
       for (;;) {
         let answered = false;
         try {
-          const res = await fetch(`${BACKEND_URL}/auth/session`, {
+          const res = await fetch(`${BACKEND_URL}/auth/session?fresh=1`, {
             credentials: "include",
             headers: authHeaders(),
           });
@@ -544,7 +545,7 @@ function ConfigureInner() {
             if (data.entitled) {
               // Apply the fresh session (same mechanism as the mount-time restore)
               // so the UI reflects the just-confirmed entitlement, not the stale
-              // pre-webhook snapshot taken when this page first loaded.
+              // pre-payment snapshot taken when this page first loaded.
               if (!cancelled) {
                 applyLoginResult(data);
                 setConfirmingCheckout(false);
@@ -552,7 +553,9 @@ function ConfigureInner() {
               return;
             }
           } else if (res.status === 401 || res.status === 403) {
-            hasSession = false;
+            // NOT_ENTITLED = signed in, Polar not updated yet: keep polling.
+            const body = (await res.json().catch(() => null)) as { code?: string } | null;
+            hasSession = body?.code === "NOT_ENTITLED";
           }
         } catch {
           // Transient network error while polling — just retry until the deadline.
@@ -1046,7 +1049,7 @@ function ConfigureInner() {
     handleReset();
   };
 
-  // Just returned from a Lemon Squeezy checkout: hold here until the webhook-driven
+  // Just returned from a checkout: hold here until the supporter
   // entitlement is confirmed (or the 20s deadline passes), then fall through as normal.
   if (confirmingCheckout) {
     return (
@@ -1056,7 +1059,7 @@ function ConfigureInner() {
             <>
               <p className="text-sm text-zinc-300">Payment received. Thanks for supporting Stremboxd.</p>
               <p className="mt-2 text-[12px] text-zinc-500">
-                Returning from checkout signs you out of this tab. Log back in to activate your supporter session.
+                This tab lost your session during checkout. Log back in to activate your supporter session.
               </p>
               <button
                 type="button"
