@@ -111,7 +111,6 @@ export async function loginUser(
     entitled ? ENTITLED_SESSION_TTL_SECONDS : undefined
   );
 
-  // Fetch user's lists using the tokens we already have
   let lists: AuthResult['lists'] = [];
   try {
     const client = createAuthenticatedClient(
@@ -132,7 +131,6 @@ export async function loginUser(
 
   const preferences = getUserPreferences(user);
 
-  // Use user ID in URL (no dots, simpler routing)
   const manifestUrl = `${config.PUBLIC_URL}/stremio/${user.id}/manifest.json`;
 
   logger.info(

@@ -85,14 +85,9 @@ const PUBLIC_DRAFT_STORAGE_KEY = "configure:public-draft";
 const PUBLIC_DRAFT_MAX_LENGTH = 16_384;
 
 /**
- * Snapshot of the public configurator state.
- *
- * Distinct from PublicConfig: the manifest config only carries list ids, which
- * is not enough to redraw the UI. The draft keeps the names and owners of
- * external catalogs, which cannot be recovered from an id alone.
- *
- * The member's own lists are deliberately left out and re-fetched on restore:
- * embedding fifty list names would blow past a usable URL length.
+ * Snapshot of the public configurator state, distinct from PublicConfig
+ * (which only carries list ids — not enough to redraw the UI). Own lists are
+ * left out and re-fetched on restore to keep the URL short.
  */
 interface PublicDraft {
   v: 1;
@@ -124,7 +119,6 @@ function getDefaultPreferences(
 }
 
 function encodeBase64Url(value: unknown): string {
-  // UTF-8 encode then base64url
   const utf8Bytes = new TextEncoder().encode(JSON.stringify(value));
   let binary = "";
   for (const byte of utf8Bytes) binary += String.fromCharCode(byte);
@@ -510,7 +504,7 @@ function ConfigureInner() {
           return;
         }
       } catch {
-        // No reachable session: fall through to the local draft, if any.
+        // fall through to the local draft
       }
 
       const stored = (() => {

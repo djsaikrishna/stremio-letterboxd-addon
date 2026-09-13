@@ -36,11 +36,7 @@ export const polarConfig = {
   frontendUrl: config.FRONTEND_URL,
 } as const;
 
-/**
- * Billing is an optional integration: a deploy without Polar configured must
- * still boot and serve the free addon. Billing routes return 503 and
- * entitlement resolves to false when this is unset.
- */
+/** Optional integration: unset means billing routes return 503 and entitlement resolves to false. */
 export const isPolarConfigured =
   Boolean(config.POLAR_ACCESS_TOKEN) &&
   Boolean(config.POLAR_PRODUCT_ID_YEARLY) &&

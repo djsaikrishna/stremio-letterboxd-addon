@@ -51,13 +51,7 @@ const MIN_POLAR_CALL_INTERVAL_MS = 5 * 1000;
 
 interface EntitlementEntry {
   entitled: boolean;
-  /**
-   * True when `entitled` reflects a genuine, current Polar answer (a fresh
-   * call, or a value still within ENTITLEMENT_TTL_MS of one); false when it
-   * is a degraded fallback — Polar failed and we fell back to a stale or
-   * absent cached value. Carried forward as-is when a cache hit skips
-   * calling Polar again.
-   */
+  /** False when `entitled` is a degraded fallback (Polar failed), not a genuine answer. */
   trustworthy: boolean;
   /** Last successful Polar answer (0 if never). */
   fetchedAt: number;
@@ -68,11 +62,9 @@ interface EntitlementEntry {
 export interface EntitlementStatus {
   entitled: boolean;
   /**
-   * False means this answer is NOT a real "no" from Polar — it's what we
-   * fell back to after a failed/unreachable lookup. Callers that would take
-   * a destructive action on a negative answer (e.g. revoking a session)
-   * must check this before doing so; callers that only gate a feature can
-   * ignore it, since fail-closed is the correct default there.
+   * False means `entitled: false` is not a confirmed "no" from Polar, just a
+   * fallback after a failed lookup. Check this before a destructive action
+   * (e.g. revoking a session); feature gates can ignore it.
    */
   trustworthy: boolean;
 }
@@ -85,12 +77,7 @@ export function clearEntitlementCache(): void {
   entitlementCache.clear();
 }
 
-/**
- * Full entitlement answer, including whether it's a trustworthy Polar
- * response or a degraded fallback. Use this wherever a negative answer
- * triggers a destructive action (e.g. clearing a session cookie) — see
- * getEntitlement() below for the simple boolean case.
- */
+/** Use wherever a negative answer triggers a destructive action; see getEntitlement() for the simple case. */
 export async function getEntitlementStatus(
   userId: string,
   options: { fresh?: boolean } = {}
@@ -127,13 +114,7 @@ export async function getEntitlementStatus(
   }
 }
 
-/**
- * Simple boolean entitlement check for callers that only gate a feature and
- * don't take a destructive action on a negative answer (fail-closed is the
- * correct, spec-sanctioned behavior there — e.g. login just skips issuing a
- * persistent cookie). See getEntitlementStatus() for callers that need to
- * tell a real "no" apart from "we don't know".
- */
+/** Simple boolean check for callers that just gate a feature (fail-closed is fine there). */
 export async function getEntitlement(userId: string, options: { fresh?: boolean } = {}): Promise<boolean> {
   return (await getEntitlementStatus(userId, options)).entitled;
 }

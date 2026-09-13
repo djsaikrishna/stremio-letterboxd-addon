@@ -62,11 +62,9 @@ export default function FAQ() {
   const [active, setActive] = useState(0);
   const [openItems, setOpenItems] = useState<Set<number>>(new Set());
 
-  // /faq is linked from home, /configure and /pricing — send Back to
-  // wherever the user actually came from instead of a hardcoded page.
-  // document.referrer is a browser-navigation concept: TransitionLink does
-  // client-side router.push, which never updates it, so it can't tell us
-  // where an in-app navigation came from — history length can.
+  // Send Back to wherever the user came from, not a hardcoded page.
+  // document.referrer doesn't work here since TransitionLink navigates via
+  // router.push — history length is the only reliable signal we have.
   const goBack = (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     document.documentElement.dataset.transition = "down";

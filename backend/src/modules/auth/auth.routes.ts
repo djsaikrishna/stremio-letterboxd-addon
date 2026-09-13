@@ -163,21 +163,9 @@ export async function authRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const user = request.sessionUser!;
 
-      // Checked before the list-fetch round trip below: during the
-      // post-checkout poll (?fresh=1, every 2s for up to 20s) most
-      // iterations come back NOT_ENTITLED, and there's no point paying for a
-      // token refresh + list fetch on every one of those just to discard it.
-      //
-      // A cookie is only ever issued to a supporter (see /auth/login), so
-      // reaching this point with entitled: false means the subscription
-      // ended after the cookie was issued — normally that should revoke it.
-      // But `entitled` can also be false because Polar was unreachable and
-      // nothing trustworthy was cached (trustworthy: false): that is NOT a
-      // real "no", and must not destroy an otherwise-valid 365-day session
-      // cookie over a transient outage. Either way the request is still
-      // denied (NOT_ENTITLED, not NO_SESSION) so the post-checkout poll
-      // keeps waiting for Polar instead of treating a valid, not-yet-
-      // upgraded bearer session as logged out.
+      // Checked before the list-fetch round trip: a session is only cleared
+      // when Polar confirmed the subscription is over (trustworthy), never
+      // on a transient Polar outage.
       const fresh = (request.query as { fresh?: string }).fresh === '1';
       const { entitled, trustworthy } = await getEntitlementStatus(user.id, { fresh });
 
