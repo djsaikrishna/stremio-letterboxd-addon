@@ -1,6 +1,6 @@
 import { createChildLogger } from '../../lib/logger.js';
 import { refreshAccessToken, getCurrentUser } from '../letterboxd/letterboxd.client.js';
-import { getDecryptedRefreshToken, type User } from '../../db/repositories/user.repository.js';
+import { getDecryptedRefreshToken, updateUser, type User } from '../../db/repositories/user.repository.js';
 import { isPolarConfigured } from '../../config/index.js';
 import { createCheckout, createPortalUrl, getCustomerState } from '../../lib/polar.js';
 import { isSupporter } from '../../lib/entitlement.js';
@@ -17,6 +17,12 @@ async function fetchEmailBestEffort(user: User): Promise<string | undefined> {
   try {
     const refreshToken = getDecryptedRefreshToken(user);
     const tokens = await refreshAccessToken(refreshToken);
+    if (tokens.refresh_token !== refreshToken) {
+      updateUser(user.id, {
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      });
+    }
     const profile = await getCurrentUser(tokens.access_token);
     return profile.emailAddress;
   } catch (err) {
