@@ -391,9 +391,7 @@ function ConfigureInner() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto animate-fade-in relative overflow-hidden rounded-xl border px-4 py-3.5 shadow-2xl ${
-              toast.tone === "success" ? "border-emerald-600/50 bg-emerald-950/95" : "border-zinc-700/80 bg-black/95"
-            }`}
+            className="pointer-events-auto animate-fade-in relative overflow-hidden rounded-xl border border-zinc-700/80 bg-black/95 px-4 py-3.5 shadow-2xl"
           >
             <span
               className={`absolute inset-y-0 left-0 w-0.5 ${
@@ -405,20 +403,10 @@ function ConfigureInner() {
               }`}
             />
             <div className="min-w-0 flex-1 pl-2 pr-8">
-              <p
-                className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                  toast.tone === "success" ? "text-emerald-400" : "text-zinc-500"
-                }`}
-              >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
                 {toast.tone === "upsell" ? "Heads up" : toast.tone === "success" ? "Success" : "Error"}
               </p>
-              <p
-                className={`mt-1 text-sm leading-relaxed ${
-                  toast.tone === "success" ? "text-emerald-100" : "text-zinc-100"
-                }`}
-              >
-                {toast.message}
-              </p>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-100">{toast.message}</p>
             </div>
             <button
               type="button"
@@ -498,21 +486,18 @@ function ConfigureInner() {
 
     const restore = async () => {
       const resumeParam = new URLSearchParams(window.location.search).get("c");
-      const stored = (() => {
-        try {
-          return localStorage.getItem(PUBLIC_DRAFT_STORAGE_KEY);
-        } catch {
-          return null;
-        }
-      })();
 
-      const draft = parsePublicDraft(resumeParam ?? stored ?? "");
-      if (draft) {
-        await applyPublicDraft(draft);
+      // An explicit resume link always wins: the user followed it on purpose.
+      const resumeDraft = parsePublicDraft(resumeParam ?? "");
+      if (resumeDraft) {
+        await applyPublicDraft(resumeDraft);
         if (!cancelled) setIsRestoringSession(false);
         return;
       }
 
+      // A real session takes priority over a stale local draft: without this,
+      // a supporter who once used the public flow (draft written) then later
+      // logged in for real would keep landing back in the public flow forever.
       try {
         const response = await fetch(`${BACKEND_URL}/auth/session`, {
           credentials: "include",
@@ -521,12 +506,27 @@ function ConfigureInner() {
 
         if (response.ok && !cancelled) {
           applyLoginResult((await response.json()) as LoginResponse);
+          if (!cancelled) setIsRestoringSession(false);
+          return;
         }
       } catch {
-        // No reachable session: fall through to the login form.
-      } finally {
-        if (!cancelled) setIsRestoringSession(false);
+        // No reachable session: fall through to the local draft, if any.
       }
+
+      const stored = (() => {
+        try {
+          return localStorage.getItem(PUBLIC_DRAFT_STORAGE_KEY);
+        } catch {
+          return null;
+        }
+      })();
+
+      const draft = parsePublicDraft(stored ?? "");
+      if (draft) {
+        await applyPublicDraft(draft);
+      }
+
+      if (!cancelled) setIsRestoringSession(false);
     };
 
     void restore();
