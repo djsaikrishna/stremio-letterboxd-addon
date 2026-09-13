@@ -20,8 +20,10 @@ export class CheckoutError extends Error {
 // PolarEmbedCheckout.create()'s returned promise only resolves once the
 // embed posts a "loaded" message back from its iframe. If polar.sh is
 // unreachable (ad-blocker, corporate proxy, offline, CSP), that message
-// never arrives and the promise never settles either way.
-const CHECKOUT_LOAD_TIMEOUT_MS = 15_000;
+// never arrives and the promise never settles either way. Generous on
+// purpose: a false timeout tears down an iframe that was still loading
+// fine, which reads as the checkout closing itself mid-open.
+const CHECKOUT_LOAD_TIMEOUT_MS = 30_000;
 
 /**
  * `create()` synchronously appends a loading spinner to `document.body` and
@@ -70,7 +72,19 @@ export async function openCheckout(onSuccess: () => void): Promise<void> {
 
   let checkout: Awaited<ReturnType<typeof PolarEmbedCheckout.create>>;
   try {
-    checkout = await Promise.race([PolarEmbedCheckout.create(url, { theme: "dark" }), timeout]);
+    checkout = await Promise.race([
+      PolarEmbedCheckout.create(url, {
+        theme: "dark",
+        // Polar's own docs: rely on this callback, not just the resolved
+        // promise, to know the embed is up — it's guaranteed to fire even
+        // when the checkout loads before create()'s own listener is fully
+        // wired. Clearing the timeout here means a checkout that has
+        // genuinely loaded never gets torn down just because create()'s
+        // promise happens to settle a tick later than this callback.
+        onLoaded: () => clearTimeout(timeoutId),
+      }),
+      timeout,
+    ]);
   } finally {
     clearTimeout(timeoutId);
   }
