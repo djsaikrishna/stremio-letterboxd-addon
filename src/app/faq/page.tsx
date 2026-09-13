@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useId } from "react";
-import TransitionLink from "../components/TransitionLink";
+import { useState, useId, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import Footer from "../components/Footer";
 import { SECTIONS } from "./data";
 import type { FAQItem } from "./data";
@@ -57,9 +57,34 @@ function FAQCard({
 }
 
 export default function FAQ() {
+  const router = useRouter();
   const tabsId = useId();
   const [active, setActive] = useState(0);
   const [openItems, setOpenItems] = useState<Set<number>>(new Set());
+
+  // /faq is linked from home, /configure and /pricing — send Back to
+  // wherever the user actually came from instead of a hardcoded page.
+  // document.referrer is a browser-navigation concept: TransitionLink does
+  // client-side router.push, which never updates it, so it can't tell us
+  // where an in-app navigation came from — history length can.
+  const goBack = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    document.documentElement.dataset.transition = "down";
+
+    const navigate = () => {
+      if (window.history.length > 1) {
+        router.back();
+      } else {
+        router.push("/");
+      }
+    };
+
+    if (document.startViewTransition) {
+      document.startViewTransition(navigate);
+    } else {
+      navigate();
+    }
+  };
 
   function handleTabChange(i: number) {
     setActive(i);
@@ -77,25 +102,24 @@ export default function FAQ() {
   return (
     <>
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0a0a] text-white">
-      <div className="mx-auto max-w-4xl px-4 py-12 sm:py-20">
-        <div className="mb-10 flex items-center justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">FAQ</h1>
-          <TransitionLink
-            href="/"
-            direction="down"
-            className="text-sm font-light text-zinc-500 transition-colors hover:text-zinc-200"
-          >
-            <svg
-              className="inline-block h-4 w-4 mr-1 -mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </TransitionLink>
-        </div>
+      <a
+        href="/"
+        onClick={goBack}
+        className="absolute left-4 top-4 z-10 text-sm font-light text-zinc-500 transition-colors hover:text-zinc-200 sm:left-6 sm:top-6"
+      >
+        <svg
+          className="inline-block h-4 w-4 mr-1 -mt-0.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </a>
+
+      <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:pt-24 sm:pb-20">
+        <h1 className="mb-10 text-3xl font-semibold tracking-tight sm:text-4xl">FAQ</h1>
 
         {/* Tabs */}
         <div role="tablist" aria-label="FAQ sections" className="mb-8 flex flex-wrap gap-2">
