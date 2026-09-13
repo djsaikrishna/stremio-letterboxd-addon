@@ -47,7 +47,7 @@ export default function Home() {
           </ul>
         </div>
 
-        <div className="mt-6 flex flex-col items-center gap-2 text-center text-sm font-light text-zinc-500 sm:mt-10">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm font-light text-zinc-500 sm:mt-10">
           <span>
             Use{" "}
             <a
@@ -60,6 +60,18 @@ export default function Home() {
             </a>{" "}
             for the best experience.
           </span>
+          <span className="text-zinc-700">·</span>
+          <span>
+            <TransitionLink
+              href="/pricing"
+              direction="up"
+              className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-zinc-200"
+            >
+              Pricing
+            </TransitionLink>
+            {" "} for auto-sync & a persistent session.
+          </span>
+          <span className="text-zinc-700">·</span>
           <span>
             <TransitionLink
               href="/faq"
