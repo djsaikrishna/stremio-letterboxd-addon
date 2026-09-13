@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import TransitionLink from "../components/TransitionLink";
 import Footer from "../components/Footer";
@@ -32,6 +32,30 @@ export default function PricingPage() {
   const [opening, setOpening] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastIdRef = useRef(0);
+
+  // /pricing is linked from home, /configure and the FAQ — send Back to
+  // wherever the user actually came from instead of a hardcoded page.
+  // document.referrer is a browser-navigation concept: TransitionLink does
+  // client-side router.push, which never updates it, so it can't tell us
+  // where an in-app navigation came from — history length can.
+  const goBack = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    document.documentElement.dataset.transition = "down";
+
+    const navigate = () => {
+      if (window.history.length > 1) {
+        router.back();
+      } else {
+        router.push("/");
+      }
+    };
+
+    if (document.startViewTransition) {
+      document.startViewTransition(navigate);
+    } else {
+      navigate();
+    }
+  };
 
   const dismissToast = (id: number) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
@@ -75,18 +99,18 @@ export default function PricingPage() {
 
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0a0a] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 pt-12 pb-24 sm:px-10 sm:pt-16 sm:pb-28">
-        <TransitionLink
-          href="/configure"
-          direction="down"
-          className="text-sm font-light text-zinc-500 transition-colors hover:text-zinc-200"
-        >
-          <svg className="mr-1 -mt-0.5 inline-block h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </TransitionLink>
+      <a
+        href="/"
+        onClick={goBack}
+        className="absolute left-4 top-4 z-10 text-sm font-light text-zinc-500 transition-colors hover:text-zinc-200 sm:left-6 sm:top-6"
+      >
+        <svg className="mr-1 -mt-0.5 inline-block h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </a>
 
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 pt-12 pb-24 sm:px-10 sm:pt-16 sm:pb-28">
         <h1 className="mt-10 text-2xl font-semibold leading-tight tracking-tight sm:mt-14 sm:whitespace-nowrap sm:text-4xl">
           Auto-sync and a persistent session.
         </h1>
