@@ -2,12 +2,20 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { loginBodySchema, preferencesBodySchema } from './auth.schemas.js';
 import { loginUser, AuthenticationError } from './auth.service.js';
-import { verifyUserToken } from '../../lib/jwt.js';
+import { signUserToken } from '../../lib/jwt.js';
+import { setSessionCookie, clearSessionCookie } from '../../lib/session-cookie.js';
+import { sessionMiddleware } from '../../middleware/auth.middleware.js';
+import { config } from '../../config/index.js';
+import { ENTITLED_SESSION_TTL_SECONDS } from '../../lib/entitlement.js';
+import { getEntitlementStatus } from '../billing/billing.service.js';
 import {
-  findUserById,
+  getUserPreferences,
+  revokeUserSessions,
   updateUserPreferences,
   upsertTier1User,
 } from '../../db/repositories/user.repository.js';
+import { fetchUserLists } from '../stremio/catalog/catalog-fetcher.service.js';
+import { SessionExpiredError } from '../stremio/user-client.service.js';
 import { trackEvent } from '../../lib/metrics.js';
 import { callWithAppToken } from '../../lib/app-client.js';
 import {
@@ -118,7 +126,16 @@ export async function authRoutes(app: FastifyInstance) {
       try {
         const result = await loginUser(body.data.username, body.data.password, body.data.totp);
         trackEvent('login', result.user?.id);
-        return result;
+
+        const { _cookieToken, ...response } = result as typeof result & { _cookieToken: string };
+
+        // Entitled users get a persistent httpOnly cookie; everyone else gets
+        // the raw token in the response body, held only in frontend memory.
+        if (result.entitled) {
+          setSessionCookie(reply, _cookieToken, ENTITLED_SESSION_TTL_SECONDS);
+        }
+
+        return response;
       } catch (error) {
         if (error instanceof AuthenticationError) {
           const statusCode =
@@ -135,24 +152,100 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
+  // Restores the configuration of a returning user from the session cookie,
+  // so preferences already stored in the database never need a second login.
+  app.get(
+    '/auth/session',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      preHandler: sessionMiddleware,
+    },
+    async (request, reply) => {
+      const user = request.sessionUser!;
+
+      // Checked before the list-fetch round trip: a session is only cleared
+      // when Polar confirmed the subscription is over (trustworthy), never
+      // on a transient Polar outage.
+      const fresh = (request.query as { fresh?: string }).fresh === '1';
+      const { entitled, trustworthy } = await getEntitlementStatus(user.id, { fresh });
+
+      if (!entitled) {
+        if (trustworthy) {
+          clearSessionCookie(reply);
+        }
+        return reply.status(401).send({ error: 'Subscription no longer active', code: 'NOT_ENTITLED' });
+      }
+
+      let lists;
+      try {
+        lists = await fetchUserLists(user);
+      } catch (error) {
+        // The stored Letterboxd refresh token is dead: only a new login can fix it.
+        if (error instanceof SessionExpiredError) {
+          clearSessionCookie(reply);
+          return reply
+            .status(401)
+            .send({ error: 'Letterboxd session expired', code: 'SESSION_EXPIRED' });
+        }
+        throw error;
+      }
+
+      // Sliding expiration: an active subscriber never hits the token TTL.
+      const refreshedToken = await signUserToken(
+        {
+          userId: user.id,
+          letterboxdId: user.letterboxd_id,
+          username: user.letterboxd_username,
+        },
+        ENTITLED_SESSION_TTL_SECONDS
+      );
+      setSessionCookie(reply, refreshedToken, ENTITLED_SESSION_TTL_SECONDS);
+
+      return {
+        manifestUrl: `${config.PUBLIC_URL}/stremio/${user.id}/manifest.json`,
+        entitled: true,
+        user: {
+          id: user.id,
+          username: user.letterboxd_username,
+          displayName: user.letterboxd_display_name,
+        },
+        lists: lists.map((l) => ({
+          id: l.id,
+          name: l.name,
+          filmCount: l.filmCount,
+          ...(l.description ? { description: l.description } : {}),
+        })),
+        preferences: getUserPreferences(user),
+      };
+    }
+  );
+
+  app.post('/auth/logout', { preHandler: sessionMiddleware }, async (request, reply) => {
+    // Revoke server-side too: clearing the cookie alone would leave a stolen
+    // copy of the token usable until it expired on its own.
+    revokeUserSessions(request.sessionUser!.id);
+    clearSessionCookie(reply);
+    return { success: true };
+  });
+
   app.post(
     '/auth/preferences',
     {
       config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      preHandler: sessionMiddleware,
       schema: {
         body: {
           type: 'object',
           properties: {
-            userToken: { type: 'string' },
             preferences: { type: 'object' },
           },
-          required: ['userToken', 'preferences'],
+          required: ['preferences'],
         },
       },
     },
     async (
       request: FastifyRequest<{
-        Body: { userToken: string; preferences: unknown };
+        Body: { preferences: unknown };
       }>,
       reply
     ) => {
@@ -165,17 +258,7 @@ export async function authRoutes(app: FastifyInstance) {
         });
       }
 
-      const payload = await verifyUserToken(parsed.data.userToken);
-      if (!payload) {
-        return reply.status(401).send({ error: 'Invalid or expired token' });
-      }
-
-      const user = findUserById(payload.sub);
-      if (!user) {
-        return reply.status(404).send({ error: 'User not found' });
-      }
-
-      updateUserPreferences(user.id, parsed.data.preferences);
+      updateUserPreferences(request.sessionUser!.id, parsed.data.preferences);
 
       return { success: true };
     }

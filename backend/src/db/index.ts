@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config/index.js';
@@ -58,20 +58,27 @@ function runMigrations(database: Database.Database): void {
     .all() as Array<{ name: string }>;
   const appliedSet = new Set(appliedMigrations.map((m) => m.name));
 
-  const migrationFiles = ['001_create_users.sql', '002_add_user_preferences.sql', '003_create_events.sql', '004_add_anonymous_tracking.sql', '005_tier1_users.sql'];
+  // Read the directory instead of a hardcoded list: a new .sql file is picked
+  // up on its own. An empty or missing directory means the build failed to copy
+  // the migrations, so fail loudly rather than start on an outdated schema.
+  if (!existsSync(migrationsDir)) {
+    throw new Error(`Migrations directory not found: ${migrationsDir}`);
+  }
+
+  const migrationFiles = readdirSync(migrationsDir)
+    .filter((file) => file.endsWith('.sql'))
+    .sort();
+
+  if (migrationFiles.length === 0) {
+    throw new Error(`No migration files found in ${migrationsDir}`);
+  }
 
   for (const file of migrationFiles) {
     if (appliedSet.has(file)) {
       continue;
     }
 
-    const filePath = join(migrationsDir, file);
-    if (!existsSync(filePath)) {
-      logger.warn({ file }, 'Migration file not found');
-      continue;
-    }
-
-    const sql = readFileSync(filePath, 'utf-8');
+    const sql = readFileSync(join(migrationsDir, file), 'utf-8');
 
     database.transaction(() => {
       database.exec(sql);

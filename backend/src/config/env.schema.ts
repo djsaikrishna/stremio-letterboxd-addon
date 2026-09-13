@@ -21,7 +21,14 @@ export const envSchema = z.object({
     .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be hexadecimal'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_TTL: z.string().default('7d'),
+  ENTITLED_SESSION_TTL: z.string().default('365d'),
   DASHBOARD_PASSWORD: z.string().min(8, 'DASHBOARD_PASSWORD must be at least 8 characters'),
+  // Optional: see isPolarConfigured in config/index.ts.
+  POLAR_ACCESS_TOKEN: z.string().min(1).optional(),
+  POLAR_PRODUCT_ID_YEARLY: z.string().min(1).optional(),
+  POLAR_PRODUCT_ID_MONTHLY: z.string().min(1).optional(),
+  POLAR_SERVER: z.enum(['production', 'sandbox']).default('production'),
+  FRONTEND_URL: z.string().url().default('https://stremboxd.com'),
 
   DATABASE_PATH: z.string().default('./data/stremio-letterboxd.db'),
 

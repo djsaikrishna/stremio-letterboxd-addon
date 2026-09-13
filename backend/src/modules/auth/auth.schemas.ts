@@ -51,8 +51,8 @@ export const userPreferencesSchema = z.object({
   sortVariants: z.record(z.string(), z.array(z.string())).optional(),
 });
 
+// The session token travels in an httpOnly cookie, never in the response body.
 export const loginResponseSchema = z.object({
-  userToken: z.string(),
   manifestUrl: z.string(),
   user: z.object({
     id: z.string(),
@@ -73,7 +73,6 @@ export const loginResponseSchema = z.object({
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
 
 export const preferencesBodySchema = z.object({
-  userToken: z.string().min(1, 'User token is required'),
   preferences: userPreferencesSchema,
 });
 

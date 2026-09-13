@@ -9,7 +9,7 @@ Watchlist, diary, friends, lists, ratings — all in one addon.
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Stremio](https://img.shields.io/badge/Stremio-addon-8A05BE?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyek0xMCAxNi41di05bDYgNC41LTYgNC41eiIvPjwvc3ZnPg==)](https://stremboxd.com/configure)
 
-[**Configure →**](https://stremboxd.com/configure) · [Website](https://stremboxd.com) · [FAQ](https://stremboxd.com/faq)
+[**Configure →**](https://stremboxd.com/configure) · [Website](https://stremboxd.com) · [Pricing](https://stremboxd.com/pricing) · [FAQ](https://stremboxd.com/faq)
 
 <br />
 
@@ -45,6 +45,17 @@ Watchlist, diary, friends, lists, ratings — all in one addon.
 | **Quick actions** | — | ✓ |
 | **Custom lists** | ✓ | ✓ |
 | **Popular / Top 250** | ✓ | ✓ |
+
+## Supporter
+
+Everything above is free. A supporter subscription adds two things:
+
+| | Free | Supporter |
+|---|---|---|
+| **Auto-sync** | Reinstall the addon after changes | Already in Stremio and Nuvio |
+| **Session** | Log in again, every time | Persistent, stays signed in |
+
+9,99&nbsp;€ / year, or 3&nbsp;€ / month. Covers hosting. [**See pricing →**](https://stremboxd.com/pricing)
 
 ## Get started
 

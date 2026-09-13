@@ -11,7 +11,7 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(jwtConfig.secret);
 }
 
-function parseTtl(ttl: string): number {
+export function parseTtl(ttl: string): number {
   const match = ttl.match(/^(\d+)([smhd])$/);
   if (!match) {
     throw new Error(`Invalid TTL format: ${ttl}`);
@@ -30,12 +30,15 @@ function parseTtl(ttl: string): number {
   return value * (multipliers[unit!] ?? 1);
 }
 
-export async function signUserToken(payload: {
-  userId: string;
-  letterboxdId: string;
-  username: string;
-}): Promise<string> {
-  const ttlSeconds = parseTtl(jwtConfig.ttl);
+export async function signUserToken(
+  payload: {
+    userId: string;
+    letterboxdId: string;
+    username: string;
+  },
+  ttlSeconds?: number
+): Promise<string> {
+  const seconds = ttlSeconds ?? parseTtl(jwtConfig.ttl);
 
   return new SignJWT({
     letterboxdId: payload.letterboxdId,
@@ -44,7 +47,7 @@ export async function signUserToken(payload: {
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(payload.userId)
     .setIssuedAt()
-    .setExpirationTime(Math.floor(Date.now() / 1000) + ttlSeconds)
+    .setExpirationTime(Math.floor(Date.now() / 1000) + seconds)
     .sign(getSecret());
 }
 

@@ -4,7 +4,7 @@ import { SECTIONS } from "./data";
 export const metadata: Metadata = {
   title: "FAQ",
   description:
-    "Answers to common questions about installing and using Stremboxd — the Letterboxd addon for Stremio. Installation, features, troubleshooting, and privacy.",
+    "Answers to common questions about installing and using Stremboxd, the Letterboxd addon for Stremio. Installation, features, troubleshooting, and privacy.",
   alternates: { canonical: "/faq" },
   openGraph: {
     title: "Stremboxd FAQ",
@@ -21,7 +21,12 @@ const faqJsonLd = {
     section.items.map((item) => ({
       "@type": "Question",
       name: item.q,
-      acceptedAnswer: { "@type": "Answer", text: item.a },
+      acceptedAnswer: {
+        "@type": "Answer",
+        // `a` may be JSX (links inside an answer), which cannot be serialised
+        // into structured data — such items carry a plain-text `aText`.
+        text: item.aText ?? (typeof item.a === "string" ? item.a : ""),
+      },
     }))
   ),
 };

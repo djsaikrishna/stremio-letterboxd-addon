@@ -1,8 +1,9 @@
 import Fastify from 'fastify';
 import type { ServerOptions } from 'node:https';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import sharp from 'sharp';
-import { config } from './config/index.js';
+import { config, corsOrigins } from './config/index.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { setupRateLimit } from './middleware/rate-limit.js';
@@ -10,6 +11,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { letterboxdRoutes } from './modules/letterboxd/letterboxd.routes.js';
 import { stremioRoutes } from './modules/stremio/stremio.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
+import { billingRoutes } from './modules/billing/billing.routes.js';
 import { generateBaseManifest } from './modules/stremio/stremio.service.js';
 import { startMemoryGuard } from './lib/memory-guard.js';
 
@@ -51,13 +53,41 @@ export async function buildApp(httpsOptions?: ServerOptions) {
     ...(httpsOptions && { https: httpsOptions }),
   });
 
-  const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
   await app.register(cors, {
     origin: corsOrigins,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // Required for the session cookie to travel from the frontend origin.
+    // Safe only because CORS_ORIGIN is an explicit allowlist (no wildcard).
+    credentials: true,
   });
   logger.info({ origins: corsOrigins }, 'CORS configured');
+
+  // Browsers treat http:// and https:// as different sites, so a SameSite=Lax
+  // session cookie is dropped when the frontend and the API disagree on scheme.
+  const apiScheme = new URL(config.PUBLIC_URL).protocol;
+  if (!corsOrigins.some((origin) => new URL(origin).protocol === apiScheme)) {
+    logger.warn(
+      { publicUrl: config.PUBLIC_URL, origins: corsOrigins },
+      'No allowed origin shares the API scheme — the session cookie will be rejected by browsers',
+    );
+  }
+
+  await app.register(cookie);
+
+  // Accept an empty JSON body (e.g. POST /billing/checkout sends none) instead
+  // of Fastify's default 400 on empty application/json payloads.
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request, body, done) => {
+    if ((body as Buffer).length === 0) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse((body as Buffer).toString('utf8')));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await setupRateLimit(app as any);
@@ -112,6 +142,7 @@ export async function buildApp(httpsOptions?: ServerOptions) {
   await app.register(letterboxdRoutes);
   await app.register(stremioRoutes);
   await app.register(dashboardRoutes);
+  await app.register(billingRoutes);
 
   app.addHook('onRequest', async (request) => {
     logger.debug(

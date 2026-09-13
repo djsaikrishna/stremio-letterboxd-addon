@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { resolveFilmQuerySchema, filmRatingQuerySchema } from './letterboxd.schemas.js';
 import { resolveFilm, getFilmRating, parseLetterboxdListUrl, resolveExternalList } from './letterboxd.service.js';
 import { verifyUserToken } from '../../lib/jwt.js';
+import { sessionMiddleware } from '../../middleware/auth.middleware.js';
 import {
   findUserById,
   getDecryptedRefreshToken,
@@ -19,6 +20,17 @@ async function getClientFromToken(userToken: string) {
   }
 
   const user = findUserById(payload.sub);
+  // A token is only good while it was issued after the user's revocation
+  // cut-off — see sessionMiddleware, which enforces the same check.
+  if (!user || (payload.iat ?? 0) <= user.session_epoch) {
+    return null;
+  }
+
+  return getClientForUserId(payload.sub);
+}
+
+async function getClientForUserId(userId: string) {
+  const user = findUserById(userId);
   if (!user) {
     return null;
   }
@@ -43,7 +55,7 @@ async function getClientFromToken(userToken: string) {
     }
   );
 
-  return { client, user, payload };
+  return { client, user };
 }
 
 export async function letterboxdRoutes(app: FastifyInstance) {
@@ -157,26 +169,26 @@ export async function letterboxdRoutes(app: FastifyInstance) {
   app.post(
     '/letterboxd/resolve-list',
     {
+      preHandler: sessionMiddleware,
       schema: {
         body: {
           type: 'object',
           properties: {
-            userToken: { type: 'string' },
             url: { type: 'string' },
           },
-          required: ['userToken', 'url'],
+          required: ['url'],
         },
       },
     },
     async (
       request: FastifyRequest<{
-        Body: { userToken: string; url: string };
+        Body: { url: string };
       }>,
       reply
     ) => {
-      const { userToken, url } = request.body;
+      const { url } = request.body;
 
-      const result = await getClientFromToken(userToken);
+      const result = await getClientForUserId(request.userPayload!.sub);
       if (!result) {
         return reply.status(401).send({ error: 'Invalid or expired token' });
       }

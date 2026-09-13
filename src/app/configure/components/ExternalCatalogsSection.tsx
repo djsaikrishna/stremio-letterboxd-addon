@@ -19,7 +19,7 @@ export function ExternalCatalogsSection({
         External Catalogs
       </h3>
       <p className="mt-1 text-[11px] text-zinc-500">
-        Lists, watchlists, or filmographies — letterboxd.com/user/list/... · /watchlist/ · /director/name/ · /actor/name/ · /studio/name/
+        Lists, watchlists, or filmographies: letterboxd.com/user/list/... · /watchlist/ · /director/name/ · /actor/name/ · /studio/name/
       </p>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">

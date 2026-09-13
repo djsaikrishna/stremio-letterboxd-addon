@@ -9,7 +9,7 @@ export default function NotFound() {
           404
         </TransitionLink>
         <p className="text-lg font-light text-zinc-400 sm:text-xl">
-          ★½ — Didn&apos;t finish it.
+          ★½. Didn&apos;t finish it.
         </p>
         <a
           href="https://buymeacoffee.com/esp4ce"

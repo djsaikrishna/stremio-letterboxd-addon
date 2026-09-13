@@ -35,6 +35,7 @@ export interface User {
   last_login_at: string;
   token_expires_at: string | null;
   preferences: string | null;
+  session_epoch: number;
 }
 
 export interface CreateUserInput {
@@ -195,6 +196,16 @@ export function getUserPreferences(user: User): UserPreferences | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Invalidates every session token issued so far for this user.
+ * Used on sign-out, and available to drop sessions on every device at once.
+ */
+export function revokeUserSessions(id: string): void {
+  const db = getDb();
+  db.prepare("UPDATE users SET session_epoch = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(Math.floor(Date.now() / 1000), id);
 }
 
 export function updateUserPreferences(

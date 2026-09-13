@@ -23,6 +23,7 @@ import { CatalogsSection } from "./components/CatalogsSection";
 import { DisplayOptionsSection } from "./components/DisplayOptionsSection";
 import { ExternalCatalogsSection } from "./components/ExternalCatalogsSection";
 import { UserListsSection } from "./components/UserListsSection";
+import { AccountLinkSection } from "./components/AccountLinkSection";
 
 interface BaseProps {
   user?: { username: string; displayName: string | null };
@@ -42,6 +43,11 @@ interface FullModeProps extends BaseProps {
   onPreferencesChange: (prefs: UserPreferences) => void;
   sortVariants: Record<string, string[]>;
   onSortVariantsChange: (variants: Record<string, string[]>) => void;
+  isStremioLinked: boolean;
+  onStremioLinkedChange: (linked: boolean) => void;
+  isNuvioLinked: boolean;
+  onNuvioLinkedChange: (linked: boolean) => void;
+  entitled: boolean;
 }
 
 interface PublicModeProps extends BaseProps {
@@ -90,7 +96,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
   // Sort variant expansion state
   const [expandedVariantCatalog, setExpandedVariantCatalog] = useState<string | null>(null);
 
-  // DnD sensors — drag only activates from the grip handle
+  // DnD sensors: drag only activates from the grip handle
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -765,6 +771,16 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
             />
           )}
 
+          {!isPublic && (
+            <AccountLinkSection
+              stremioLinked={(props as FullModeProps).isStremioLinked}
+              onStremioLinkedChange={(props as FullModeProps).onStremioLinkedChange}
+              nuvioLinked={(props as FullModeProps).isNuvioLinked}
+              onNuvioLinkedChange={(props as FullModeProps).onNuvioLinkedChange}
+              entitled={(props as FullModeProps).entitled}
+            />
+          )}
+
           {/* Save Button */}
           <div className="mt-8">
             <button
@@ -790,13 +806,17 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  {isPublic ? "Generate & Install" : "Save & Install"}
+                  {isPublic
+                    ? "Generate & Install"
+                    : (props as FullModeProps).isStremioLinked || (props as FullModeProps).isNuvioLinked
+                      ? "Save"
+                      : "Save & Install"}
                 </>
               )}
             </button>
 
             <p className="mt-4 text-center text-xs text-zinc-500">
-              Hosting costs ~$14/month —{" "}
+              Hosting costs ~$20/month, so{" "}
               <a
                 href="https://buymeacoffee.com/esp4ce"
                 target="_blank"
@@ -805,7 +825,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
               >
                 buy me a coffee ☕
               </a>{" "}
-              if you'd like to help keep it running.
+              if you&apos;d like to help keep it running.
             </p>
           </div>
         </div>

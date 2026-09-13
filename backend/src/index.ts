@@ -11,7 +11,15 @@ import { shutdownPosthog } from './lib/posthog.js';
 async function main() {
   logger.info('Starting Stremio Addon Backend...');
 
-  initDb();
+  try {
+    initDb();
+  } catch (error) {
+    logger.fatal(
+      { err: error instanceof Error ? { message: error.message, stack: error.stack } : error },
+      'Database initialization failed — refusing to start on an outdated schema.'
+    );
+    process.exit(1);
+  }
 
   // Cleanup old events (keep last 90 days)
   const deletedCount = cleanupOldEvents(90);

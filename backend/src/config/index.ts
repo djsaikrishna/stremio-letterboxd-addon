@@ -25,7 +25,40 @@ export const catalogConfig = {
 export const jwtConfig = {
   secret: config.JWT_SECRET,
   ttl: config.JWT_TTL,
+  entitledTtl: config.ENTITLED_SESSION_TTL,
 } as const;
+
+export const polarConfig = {
+  accessToken: config.POLAR_ACCESS_TOKEN,
+  productIdYearly: config.POLAR_PRODUCT_ID_YEARLY,
+  productIdMonthly: config.POLAR_PRODUCT_ID_MONTHLY,
+  server: config.POLAR_SERVER,
+  frontendUrl: config.FRONTEND_URL,
+} as const;
+
+/** Optional integration: unset means billing routes return 503 and entitlement resolves to false. */
+export const isPolarConfigured =
+  Boolean(config.POLAR_ACCESS_TOKEN) &&
+  Boolean(config.POLAR_PRODUCT_ID_YEARLY) &&
+  Boolean(config.POLAR_PRODUCT_ID_MONTHLY);
+
+export interface ResolvedPolarConfig {
+  accessToken: string;
+  productIdYearly: string;
+  productIdMonthly: string;
+  server: 'production' | 'sandbox';
+  frontendUrl: string;
+}
+
+/** Throws if Polar isn't configured — callers must check `isPolarConfigured` first. */
+export function requirePolarConfig(): ResolvedPolarConfig {
+  if (!isPolarConfigured) {
+    throw new Error('Billing is not configured');
+  }
+  return polarConfig as ResolvedPolarConfig;
+}
+
+export const corsOrigins = config.CORS_ORIGIN.split(',').map((o) => o.trim());
 
 export const cacheConfig = {
   maxSize: config.CACHE_MAX_SIZE,

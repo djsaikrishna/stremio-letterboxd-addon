@@ -8,6 +8,9 @@ describe('CORS hardening', () => {
     ENCRYPTION_KEY: 'a'.repeat(64),
     JWT_SECRET: 'a'.repeat(32),
     DASHBOARD_PASSWORD: 'testpassword123',
+    POLAR_ACCESS_TOKEN: 'test-polar-token',
+    POLAR_PRODUCT_ID_YEARLY: 'prod-yearly',
+    POLAR_PRODUCT_ID_MONTHLY: 'prod-monthly',
   };
 
   it('accepts valid single origin', () => {
