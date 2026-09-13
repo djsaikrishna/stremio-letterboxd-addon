@@ -20,7 +20,8 @@ export const envSchema = z.object({
     .length(64, 'ENCRYPTION_KEY must be 64 hex characters (32 bytes)')
     .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be hexadecimal'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_TTL: z.string().default('30d'),
+  JWT_TTL: z.string().default('7d'),
+  ENTITLED_SESSION_TTL: z.string().default('365d'),
   DASHBOARD_PASSWORD: z.string().min(8, 'DASHBOARD_PASSWORD must be at least 8 characters'),
   // Billing is an optional integration: an unconfigured deploy must still
   // boot and serve the free addon — see isPolarConfigured in config/index.ts.

@@ -173,7 +173,7 @@ export async function authRoutes(app: FastifyInstance) {
       // ended after the cookie was issued — normally that should revoke it.
       // But `entitled` can also be false because Polar was unreachable and
       // nothing trustworthy was cached (trustworthy: false): that is NOT a
-      // real "no", and must not destroy an otherwise-valid 400-day session
+      // real "no", and must not destroy an otherwise-valid 365-day session
       // cookie over a transient outage. Either way the request is still
       // denied (NOT_ENTITLED, not NO_SESSION) so the post-checkout poll
       // keeps waiting for Polar instead of treating a valid, not-yet-

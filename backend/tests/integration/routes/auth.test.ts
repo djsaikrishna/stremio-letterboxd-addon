@@ -97,7 +97,7 @@ describe('auth routes', () => {
       expect(res.cookies.find((c) => c.name === 'sb_session')).toBeUndefined();
     });
 
-    it('sets a 400-day session cookie and omits userToken for an entitled user', async () => {
+    it('sets a 365-day session cookie and omits userToken for an entitled user', async () => {
       mockedEntitlement.mockResolvedValue(true);
 
       const res = await app.inject({
@@ -111,7 +111,7 @@ describe('auth routes', () => {
       expect(res.json().userToken).toBeUndefined();
       const cookie = res.cookies.find((c) => c.name === 'sb_session');
       expect(cookie).toBeDefined();
-      expect(cookie?.maxAge).toBe(400 * 24 * 60 * 60);
+      expect(cookie?.maxAge).toBe(365 * 24 * 60 * 60);
       expect(mockedEntitlement).toHaveBeenCalledWith(res.json().user.id, { fresh: true });
     });
   });
@@ -271,7 +271,7 @@ describe('auth routes', () => {
       const user = createUser({ letterboxdId: 'session-lapse-1', letterboxdUsername: 'lapseuser', refreshToken: 'x' });
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
-        400 * 24 * 60 * 60
+        365 * 24 * 60 * 60
       );
       mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: true });
 
@@ -286,7 +286,7 @@ describe('auth routes', () => {
       const user = createUser({ letterboxdId: 'session-degraded-1', letterboxdUsername: 'degradeduser', refreshToken: 'x' });
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
-        400 * 24 * 60 * 60
+        365 * 24 * 60 * 60
       );
       mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: false });
 
@@ -295,7 +295,7 @@ describe('auth routes', () => {
       expect(res.statusCode).toBe(401);
       expect(res.json()).toMatchObject({ code: 'NOT_ENTITLED' });
       // Unlike a genuine negative answer, a degraded/unknown one must not
-      // destroy an otherwise-valid 400-day session cookie.
+      // destroy an otherwise-valid 365-day session cookie.
       expect(res.cookies.find((c) => c.name === 'sb_session')).toBeUndefined();
     });
 
@@ -304,7 +304,7 @@ describe('auth routes', () => {
       const user = createUser({ letterboxdId: 'session-shortcircuit-1', letterboxdUsername: 'shortcircuituser', refreshToken: 'x' });
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
-        400 * 24 * 60 * 60
+        365 * 24 * 60 * 60
       );
       mockedEntitlementStatus.mockResolvedValue({ entitled: false, trustworthy: true });
 
@@ -331,19 +331,19 @@ describe('auth routes', () => {
       expect(mockedEntitlementStatus).toHaveBeenCalledWith(user.id, { fresh: true });
     });
 
-    it('reports entitled: true and refreshes the 400-day cookie for an active subscriber', async () => {
+    it('reports entitled: true and refreshes the 365-day cookie for an active subscriber', async () => {
       const user = createUser({ letterboxdId: 'session-lapse-2', letterboxdUsername: 'entitleduser', refreshToken: 'x' });
       mockedEntitlementStatus.mockResolvedValue({ entitled: true, trustworthy: true });
       const token = await signUserToken(
         { userId: user.id, letterboxdId: user.letterboxd_id, username: user.letterboxd_username },
-        400 * 24 * 60 * 60
+        365 * 24 * 60 * 60
       );
 
       const res = await app.inject({ method: 'GET', url: '/auth/session', cookies: { sb_session: token } });
 
       expect(res.statusCode).toBe(200);
       expect(res.json().entitled).toBe(true);
-      expect(res.cookies.find((c) => c.name === 'sb_session')?.maxAge).toBe(400 * 24 * 60 * 60);
+      expect(res.cookies.find((c) => c.name === 'sb_session')?.maxAge).toBe(365 * 24 * 60 * 60);
       expect(mockedEntitlementStatus).toHaveBeenCalledWith(user.id, { fresh: false });
     });
   });

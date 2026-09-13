@@ -25,6 +25,7 @@ export const catalogConfig = {
 export const jwtConfig = {
   secret: config.JWT_SECRET,
   ttl: config.JWT_TTL,
+  entitledTtl: config.ENTITLED_SESSION_TTL,
 } as const;
 
 export const polarConfig = {
