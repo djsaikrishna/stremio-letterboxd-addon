@@ -116,7 +116,7 @@ export function AccountLinkSection({
 
       {(stremioLinked || nuvioLinked) && !entitled && (
         <p className="mt-2 rounded-lg bg-amber-500/10 px-3.5 py-2.5 text-[12px] text-amber-300">
-          Linked, but auto-sync needs a Stremboxd supporter subscription — your saves won&apos;t reach{" "}
+          Linked, but auto-sync needs a Stremboxd supporter subscription, your saves won&apos;t reach{" "}
           {stremioLinked && nuvioLinked ? "Stremio or Nuvio" : stremioLinked ? "Stremio" : "Nuvio"} until you{" "}
           <TransitionLink
             href="/pricing"

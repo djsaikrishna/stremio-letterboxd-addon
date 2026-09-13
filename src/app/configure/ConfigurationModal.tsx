@@ -816,7 +816,7 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
             </button>
 
             <p className="mt-4 text-center text-xs text-zinc-500">
-              Hosting costs ~$14/month, so{" "}
+              Hosting costs ~$20/month, so{" "}
               <a
                 href="https://buymeacoffee.com/esp4ce"
                 target="_blank"
