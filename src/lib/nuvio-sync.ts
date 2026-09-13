@@ -122,7 +122,10 @@ async function getAccessToken(): Promise<string> {
     headers: { apikey: backend.key, "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: session.refreshToken }),
   });
-  if (!response.ok) throw new UnauthorizedError();
+  if (response.status === 401 || response.status === 403) throw new UnauthorizedError();
+  if (!response.ok) {
+    throw new Error(`Nuvio token refresh failed with status ${response.status}`);
+  }
 
   const refreshed = toSession((await response.json()) as TokenResponse);
   storeSession(refreshed);
