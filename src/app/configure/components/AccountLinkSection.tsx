@@ -99,7 +99,9 @@ export function AccountLinkSection({
   };
 
   const unlink = (provider: Provider) => {
-    abortRef.current?.abort();
+    if (pairing === provider) {
+      abortRef.current?.abort();
+    }
     setError(null);
     if (provider === "stremio") {
       clearAuthKey();
