@@ -61,7 +61,7 @@ interface PublicConfig {
 interface ToastItem {
   id: number;
   message: string;
-  tone: "error" | "upsell";
+  tone: "error" | "upsell" | "success";
 }
 
 interface ResolvedList {
@@ -310,6 +310,12 @@ function ConfigureInner() {
     setTimeout(() => dismissToast(id), TOAST_DURATION);
   };
 
+  const showSuccessToast = (message: string) => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message, tone: "success" }]);
+    setTimeout(() => dismissToast(id), TOAST_DURATION);
+  };
+
   const formatListResolveError = (message: string) => {
     const normalized = message.replace(/\s+/g, " ").trim();
     const cleaned = normalized
@@ -385,18 +391,34 @@ function ConfigureInner() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto animate-fade-in relative overflow-hidden rounded-xl border border-zinc-700/80 bg-black/95 px-4 py-3.5 shadow-2xl"
+            className={`pointer-events-auto animate-fade-in relative overflow-hidden rounded-xl border px-4 py-3.5 shadow-2xl ${
+              toast.tone === "success" ? "border-emerald-600/50 bg-emerald-950/95" : "border-zinc-700/80 bg-black/95"
+            }`}
           >
             <span
               className={`absolute inset-y-0 left-0 w-0.5 ${
-                toast.tone === "upsell" ? "bg-amber-500/80" : "bg-red-500/80"
+                toast.tone === "upsell"
+                  ? "bg-amber-500/80"
+                  : toast.tone === "success"
+                    ? "bg-emerald-500/80"
+                    : "bg-red-500/80"
               }`}
             />
             <div className="min-w-0 flex-1 pl-2 pr-8">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                {toast.tone === "upsell" ? "Heads up" : "Error"}
+              <p
+                className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                  toast.tone === "success" ? "text-emerald-400" : "text-zinc-500"
+                }`}
+              >
+                {toast.tone === "upsell" ? "Heads up" : toast.tone === "success" ? "Success" : "Error"}
               </p>
-              <p className="mt-1 text-sm leading-relaxed text-zinc-100">{toast.message}</p>
+              <p
+                className={`mt-1 text-sm leading-relaxed ${
+                  toast.tone === "success" ? "text-emerald-100" : "text-zinc-100"
+                }`}
+              >
+                {toast.message}
+              </p>
             </div>
             <button
               type="button"
@@ -549,6 +571,7 @@ function ConfigureInner() {
               if (!cancelled) {
                 applyLoginResult(data);
                 setConfirmingCheckout(false);
+                showSuccessToast("Payment confirmed - thanks for your support!");
               }
               return;
             }
