@@ -55,7 +55,7 @@ export async function sessionMiddleware(
     }
 
     const user = findUserById(payload.sub);
-    if (!user || (payload.iat ?? 0) < user.session_epoch) {
+    if (!user || (payload.iat ?? 0) <= user.session_epoch) {
       return reply.status(401).send({ error: 'Invalid or expired session', code: 'NO_SESSION' });
     }
 
@@ -92,7 +92,9 @@ export async function sessionMiddleware(
 
   // A token is only good while it was issued after the user's revocation
   // cut-off, so signing out invalidates it server-side and not just locally.
-  if (!user || (payload.iat ?? 0) < user.session_epoch) {
+  // iat has second resolution, so a token minted in the same wall-clock
+  // second as the revocation must also be rejected (fail closed on ties).
+  if (!user || (payload.iat ?? 0) <= user.session_epoch) {
     clearSessionCookie(reply);
     return reply
       .status(401)

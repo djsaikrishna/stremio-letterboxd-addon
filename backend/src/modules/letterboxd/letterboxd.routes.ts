@@ -19,6 +19,13 @@ async function getClientFromToken(userToken: string) {
     return null;
   }
 
+  const user = findUserById(payload.sub);
+  // A token is only good while it was issued after the user's revocation
+  // cut-off — see sessionMiddleware, which enforces the same check.
+  if (!user || (payload.iat ?? 0) <= user.session_epoch) {
+    return null;
+  }
+
   return getClientForUserId(payload.sub);
 }
 
