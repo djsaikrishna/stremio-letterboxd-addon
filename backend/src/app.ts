@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import type { ServerOptions } from 'node:https';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
+import compress from '@fastify/compress';
 import sharp from 'sharp';
 import { config, corsOrigins } from './config/index.js';
 import { logger } from './lib/logger.js';
@@ -74,6 +75,8 @@ export async function buildApp(httpsOptions?: ServerOptions) {
   }
 
   await app.register(cookie);
+
+  await app.register(compress, { encodings: ['gzip'] });
 
   // Accept an empty JSON body (e.g. POST /billing/checkout sends none) instead
   // of Fastify's default 400 on empty application/json payloads.
