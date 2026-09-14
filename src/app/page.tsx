@@ -49,19 +49,6 @@ export default function Home() {
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm font-light text-zinc-500 sm:mt-10">
           <span>
-            Use{" "}
-            <a
-              href="https://stremio-addon-manager.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-zinc-200"
-            >
-              Stremio Addon Manager
-            </a>{" "}
-            for the best experience.
-          </span>
-          <span className="text-zinc-700">·</span>
-          <span>
             <TransitionLink
               href="/pricing"
               direction="up"
