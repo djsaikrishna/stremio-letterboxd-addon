@@ -2,11 +2,16 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /backend
+    target-branch: integration
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
     groups:
+      vitest:
+        patterns:
+          - vitest
+          - "@vitest/*"
       minor-patch:
         update-types:
           - minor
@@ -14,11 +19,16 @@ updates:
 
   - package-ecosystem: npm
     directory: /
+    target-branch: integration
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
     groups:
+      vitest:
+        patterns:
+          - vitest
+          - "@vitest/*"
       minor-patch:
         update-types:
           - minor
@@ -26,5 +36,6 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: integration
     schedule:
       interval: monthly

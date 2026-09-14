@@ -35,6 +35,10 @@ jobs:
         working-directory: backend
         run: npm audit --audit-level=high
 
+      - name: Typecheck
+        working-directory: backend
+        run: npx tsc --noEmit
+
       - name: Run tests
         working-directory: backend
         run: npm run test:run

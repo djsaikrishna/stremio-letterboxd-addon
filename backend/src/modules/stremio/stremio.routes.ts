@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   findUserById,
   findUserByLetterboxdUsername,
@@ -71,6 +71,16 @@ function trackTier1(
 ): void {
   const userId = cfg.u ? findUserByLetterboxdUsername(cfg.u)?.id : undefined;
   trackEvent(event, userId, { tier: 1, ...extra }, userId ? undefined : generateAnonId(request));
+}
+
+const GLOBAL_CATALOG_MAX_AGE = 3600;
+const CONFIG_CATALOG_MAX_AGE = 300;
+const USER_MANIFEST_MAX_AGE = 300;
+
+function withCatalogCache<T extends { metas: unknown[] }>(reply: FastifyReply, result: T, maxAge: number): T {
+  // Empty metas may hide a swallowed upstream failure: don't let clients cache it.
+  if (result.metas.length > 0) reply.header('Cache-Control', `public, max-age=${maxAge}`);
+  return result;
 }
 
 const IMDB_REGEX = /^tt\d{1,10}$/;
@@ -200,7 +210,7 @@ export async function stremioRoutes(app: FastifyInstance) {
   app.get('/catalog/movie/letterboxd-popular.json', async (_request, reply) => {
     reply.header('Access-Control-Allow-Origin', '*');
     reply.header('Content-Type', 'application/json');
-    return await fetchPopularCatalogPublic(0, true);
+    return withCatalogCache(reply, await fetchPopularCatalogPublic(0, true), GLOBAL_CATALOG_MAX_AGE);
   });
 
   app.get(
@@ -211,16 +221,20 @@ export async function stremioRoutes(app: FastifyInstance) {
       const { skip, sort, isShuffle, isReleasedOnly, includeGenre, decade } = parseCombinedFilter(request.params.extra);
       const effectiveSort = isShuffle ? 'Shuffle' : sort;
       const { metas } = await fetchPopularCatalogPublic(skip, true, effectiveSort, includeGenre, decade);
-      if (!isReleasedOnly) return { metas };
+      if (!isReleasedOnly) return withCatalogCache(reply, { metas }, GLOBAL_CATALOG_MAX_AGE);
       const full = getFullPublicCatalogFromCache('letterboxd-popular', true, effectiveSort, undefined, includeGenre, decade);
-      return { metas: full ? sliceReleased(full, skip, CATALOG_PAGE_SIZE, true) : filterUnreleasedFilms(metas, true) };
+      return withCatalogCache(
+        reply,
+        { metas: full ? sliceReleased(full, skip, CATALOG_PAGE_SIZE, true) : filterUnreleasedFilms(metas, true) },
+        GLOBAL_CATALOG_MAX_AGE,
+      );
     },
   );
 
   app.get('/catalog/movie/letterboxd-top250.json', async (_request, reply) => {
     reply.header('Access-Control-Allow-Origin', '*');
     reply.header('Content-Type', 'application/json');
-    return await fetchTop250CatalogPublic(0, true);
+    return withCatalogCache(reply, await fetchTop250CatalogPublic(0, true), GLOBAL_CATALOG_MAX_AGE);
   });
 
   app.get(
@@ -231,9 +245,13 @@ export async function stremioRoutes(app: FastifyInstance) {
       const { skip, sort, isShuffle, isReleasedOnly, includeGenre, decade } = parseCombinedFilter(request.params.extra);
       const effectiveSort = isShuffle ? 'Shuffle' : sort;
       const { metas } = await fetchTop250CatalogPublic(skip, true, effectiveSort, includeGenre, decade);
-      if (!isReleasedOnly) return { metas };
+      if (!isReleasedOnly) return withCatalogCache(reply, { metas }, GLOBAL_CATALOG_MAX_AGE);
       const full = getFullPublicCatalogFromCache('letterboxd-top250', true, effectiveSort, undefined, includeGenre, decade);
-      return { metas: full ? sliceReleased(full, skip, CATALOG_PAGE_SIZE, true) : filterUnreleasedFilms(metas, true) };
+      return withCatalogCache(
+        reply,
+        { metas: full ? sliceReleased(full, skip, CATALOG_PAGE_SIZE, true) : filterUnreleasedFilms(metas, true) },
+        GLOBAL_CATALOG_MAX_AGE,
+      );
     },
   );
 
@@ -313,7 +331,11 @@ export async function stremioRoutes(app: FastifyInstance) {
       reply.header('Content-Type', 'application/json');
 
       const memberId = cfg.u ? await resolveMemberId(cfg.u) : null;
-      return await handlePublicCatalogRequest(cfg, request.params.id, undefined, memberId);
+      return withCatalogCache(
+        reply,
+        await handlePublicCatalogRequest(cfg, request.params.id, undefined, memberId),
+        CONFIG_CATALOG_MAX_AGE,
+      );
     },
   );
 
@@ -328,7 +350,11 @@ export async function stremioRoutes(app: FastifyInstance) {
       reply.header('Content-Type', 'application/json');
 
       const memberId = cfg.u ? await resolveMemberId(cfg.u) : null;
-      return await handlePublicCatalogRequest(cfg, request.params.id, request.params.extra, memberId);
+      return withCatalogCache(
+        reply,
+        await handlePublicCatalogRequest(cfg, request.params.id, request.params.extra, memberId),
+        CONFIG_CATALOG_MAX_AGE,
+      );
     },
   );
 
@@ -402,6 +428,7 @@ export async function stremioRoutes(app: FastifyInstance) {
           { username: user.letterboxd_username, listsCount: lists.length, hasPreferences: !!preferences },
           'Dynamic manifest generated',
         );
+        reply.header('Cache-Control', `public, max-age=${USER_MANIFEST_MAX_AGE}`);
         return manifest;
       } catch (error) {
         // Session expired: keep external lists + preferences instead of the static manifest.
