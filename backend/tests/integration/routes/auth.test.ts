@@ -114,6 +114,21 @@ describe('auth routes', () => {
       expect(cookie?.maxAge).toBe(365 * 24 * 60 * 60);
       expect(mockedEntitlement).toHaveBeenCalledWith(res.json().user.id, { fresh: true });
     });
+
+    it('does not set a session cookie for an entitled user who opts out with rememberMe: false', async () => {
+      mockedEntitlement.mockResolvedValue(true);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: 'testuser', password: 'testpass', rememberMe: false },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().entitled).toBe(true);
+      expect(res.json().userToken).toBeTypeOf('string');
+      expect(res.cookies.find((c) => c.name === 'sb_session')).toBeUndefined();
+    });
   });
 
   describe('POST /auth/preferences', () => {

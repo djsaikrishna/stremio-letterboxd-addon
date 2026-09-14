@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import TransitionLink from "../components/TransitionLink";
 import Footer from "../components/Footer";
 import ConfigurationModal from "./ConfigurationModal";
+import { Toggle } from "./components/primitives";
 import type { UserPreferences } from "../../types/preferences";
 import { readAuthKey, syncAddon, type SyncResult } from "../../lib/stremio-sync";
 import { readSession as readNuvioSession, syncAddon as syncNuvioAddon } from "../../lib/nuvio-sync";
@@ -257,6 +258,9 @@ function ConfigureInner() {
   const [passwordPreview, setPasswordPreview] = useState("");
   const [arrowTopPx, setArrowTopPx] = useState(24);
   const hasPassword = passwordPreview.trim().length > 0;
+  // Default on: matches the pre-existing always-persist behavior for
+  // supporters. Has no effect for non-supporters (no cookie either way).
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     const updateArrowPosition = () => {
@@ -298,10 +302,10 @@ function ConfigureInner() {
     setTimeout(() => dismissToast(id), TOAST_DURATION);
   };
 
-  const showUpsellToast = (message: string) => {
+  const showUpsellToast = (message: string, durationMs = TOAST_DURATION) => {
     const id = ++toastIdRef.current;
     setToasts((prev) => [...prev, { id, message, tone: "upsell" }]);
-    setTimeout(() => dismissToast(id), TOAST_DURATION);
+    setTimeout(() => dismissToast(id), durationMs);
   };
 
   const showSuccessToast = (message: string) => {
@@ -418,11 +422,14 @@ function ConfigureInner() {
     );
   };
 
-  const applyLoginResult = (loginResult: LoginResponse) => {
+  const applyLoginResult = (loginResult: LoginResponse, warnIfRememberMeIneffective = false) => {
     setInMemorySessionToken(
       "userToken" in loginResult && typeof loginResult.userToken === "string" ? loginResult.userToken : null
     );
     setEntitled(loginResult.entitled);
+    if (warnIfRememberMeIneffective && rememberMe && !loginResult.entitled) {
+      showUpsellToast("Stay signed in needs a supporter subscription.", 6000);
+    }
     setResult(loginResult);
     const defaults = getDefaultPreferences(loginResult.lists);
     const prefs = loginResult.preferences
@@ -616,7 +623,7 @@ function ConfigureInner() {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, rememberMe }),
         });
 
         const data = await response.json();
@@ -631,7 +638,7 @@ function ConfigureInner() {
           throw new Error(errorData.error || "Authentication failed");
         }
 
-        applyLoginResult(data as LoginResponse);
+        applyLoginResult(data as LoginResponse, true);
       } else {
         // Public flow (username only)
         const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
@@ -680,7 +687,7 @@ function ConfigureInner() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ username, password, totp: totpCode.trim() }),
+        body: JSON.stringify({ username, password, totp: totpCode.trim(), rememberMe }),
       });
 
       const data = await response.json();
@@ -692,7 +699,7 @@ function ConfigureInner() {
 
       setShow2FA(false);
       setTotpCode("");
-      applyLoginResult(data as LoginResponse);
+      applyLoginResult(data as LoginResponse, true);
     } catch (err) {
       showErrorToast(err instanceof Error ? err.message : "Invalid code");
     } finally {
@@ -1409,6 +1416,18 @@ function ConfigureInner() {
                   className="mt-2 block w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-colors focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
+
+              {hasPassword && (
+                <div className="flex items-center justify-between rounded-lg bg-zinc-800/35 px-3.5 py-3">
+                  <div>
+                    <p className="text-[13px] font-medium text-white">Stay Signed In</p>
+                    <p className="mt-0.5 text-[11px] text-zinc-500">
+                      Supporters only. Skips the Letterboxd login next visit.
+                    </p>
+                  </div>
+                  <Toggle enabled={rememberMe} onToggle={() => setRememberMe(!rememberMe)} />
+                </div>
+              )}
 
               <div className="rounded-xl border border-zinc-800 bg-zinc-800/30 px-3.5 py-2.5">
                 <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Mode</p>

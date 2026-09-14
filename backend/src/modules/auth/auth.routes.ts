@@ -103,6 +103,7 @@ export async function authRoutes(app: FastifyInstance) {
             username: { type: 'string' },
             password: { type: 'string' },
             totp: { type: 'string' },
+            rememberMe: { type: 'boolean' },
           },
           required: ['username', 'password'],
         },
@@ -110,7 +111,7 @@ export async function authRoutes(app: FastifyInstance) {
     },
     async (
       request: FastifyRequest<{
-        Body: { username: string; password: string; totp?: string };
+        Body: { username: string; password: string; totp?: string; rememberMe?: boolean };
       }>,
       reply
     ) => {
@@ -124,14 +125,20 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       try {
-        const result = await loginUser(body.data.username, body.data.password, body.data.totp);
+        const result = await loginUser(
+          body.data.username,
+          body.data.password,
+          body.data.totp,
+          body.data.rememberMe
+        );
         trackEvent('login', result.user?.id);
 
         const { _cookieToken, ...response } = result as typeof result & { _cookieToken: string };
 
-        // Entitled users get a persistent httpOnly cookie; everyone else gets
-        // the raw token in the response body, held only in frontend memory.
-        if (result.entitled) {
+        // Persisted (entitled + opted in) sessions get a persistent httpOnly
+        // cookie; everyone else gets the raw token in the response body,
+        // held only in frontend memory for the lifetime of the tab.
+        if (result.persisted) {
           setSessionCookie(reply, _cookieToken, ENTITLED_SESSION_TTL_SECONDS);
         }
 

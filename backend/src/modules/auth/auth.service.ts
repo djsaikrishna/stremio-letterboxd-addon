@@ -19,8 +19,10 @@ import { getEntitlement } from '../billing/billing.service.js';
 const logger = createChildLogger('auth-service');
 
 export interface AuthResult {
-  userToken?: string; // present only when the user is not entitled (see below)
+  userToken?: string; // present only when the session isn't persisted server-side (see below)
   entitled: boolean;
+  persisted: boolean; // entitled AND the user opted into a persistent session
+
   manifestUrl: string;
   user: {
     id: string;
@@ -49,7 +51,8 @@ export class AuthenticationError extends Error {
 export async function loginUser(
   username: string,
   password: string,
-  totp?: string
+  totp?: string,
+  rememberMe = true
 ): Promise<AuthResult> {
   logger.info({ username, has2fa: !!totp }, 'Login attempt');
 
@@ -101,6 +104,8 @@ export async function loginUser(
 
   // A login is rare and decides the cookie TTL, so always ask Polar.
   const entitled = await getEntitlement(user.id, { fresh: true });
+  // Entitlement unlocks a persistent cookie; the user still has to opt in.
+  const persisted = entitled && rememberMe;
 
   const signedToken = await signUserToken(
     {
@@ -108,7 +113,7 @@ export async function loginUser(
       letterboxdId: user.letterboxd_id,
       username: user.letterboxd_username,
     },
-    entitled ? ENTITLED_SESSION_TTL_SECONDS : undefined
+    persisted ? ENTITLED_SESSION_TTL_SECONDS : undefined
   );
 
   let lists: AuthResult['lists'] = [];
@@ -139,8 +144,9 @@ export async function loginUser(
   );
 
   return {
-    userToken: entitled ? undefined : signedToken,
+    userToken: persisted ? undefined : signedToken,
     entitled,
+    persisted,
     manifestUrl,
     user: {
       id: user.id,

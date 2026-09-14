@@ -814,19 +814,6 @@ export default function ConfigurationModal(props: ConfigurationModalProps) {
                 </>
               )}
             </button>
-
-            <p className="mt-4 text-center text-xs text-zinc-500">
-              Hosting costs ~$20/month, so{" "}
-              <a
-                href="https://buymeacoffee.com/esp4ce"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-zinc-400 underline underline-offset-2 transition-colors hover:text-zinc-200"
-              >
-                buy me a coffee ☕
-              </a>{" "}
-              if you&apos;d like to help keep it running.
-            </p>
           </div>
         </div>
       </div>
