@@ -108,56 +108,53 @@ export default function PricingPage() {
         Back
       </a>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 pt-12 pb-24 sm:px-10 sm:pt-16 sm:pb-28">
-        <h1 className="mt-10 text-2xl font-semibold leading-tight tracking-tight sm:mt-14 sm:whitespace-nowrap sm:text-4xl">
-          Auto-sync and a persistent session.
-        </h1>
-        <p className="mt-3 text-base font-light text-zinc-400 sm:whitespace-nowrap sm:text-lg">
-          Everything else in Stremboxd stays free and open source.
-        </p>
+      <div className="mx-auto flex min-h-screen w-full max-w-[980px] flex-col justify-center gap-12 px-6 py-16 sm:px-10">
+        <section>
+          <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:whitespace-nowrap sm:text-4xl">
+            Auto-sync and a persistent session.
+          </h1>
+          <p className="mt-3 max-w-2xl text-base font-light leading-relaxed text-zinc-400 sm:text-lg">
+            Everything else in Stremboxd stays free and open source. This covers hosting.{" "}
+            <span className="text-white">Think of it as a tip, not a subscription.</span>
+          </p>
+        </section>
 
-        <div className="mt-10 grid grid-cols-1 items-stretch gap-12 sm:mt-12 lg:grid-cols-[1.3fr_1fr] lg:gap-16">
-          <section aria-labelledby="compare-heading" className="flex flex-col justify-center">
-            <h2 id="compare-heading" className="sr-only">
-              Free compared to supporter
-            </h2>
-            <div className="hidden grid-cols-[1fr_170px_190px] gap-x-6 border-b border-zinc-800 pb-6 text-xs text-zinc-500 sm:grid">
-              <span>Feature</span>
-              <span>Free</span>
-              <span className="text-white">Supporter</span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-[1fr_170px_190px] sm:items-center sm:gap-x-6 sm:gap-y-0">
-              {COMPARISON.map((row, index) => (
-                <FeatureRow key={row.feature} row={row} first={index === 0} />
-              ))}
-            </div>
-          </section>
-
-          <div
-            className="film-grain relative flex flex-col justify-center overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 sm:p-7"
-            aria-live="polite"
-          >
-            <p className="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
-              <span className="text-4xl font-semibold tracking-tight">9,99&nbsp;€</span>
-              <span className="text-sm font-light text-zinc-500">/ year, or 3&nbsp;€ / month</span>
-            </p>
-            <p className="mt-4 text-sm font-light leading-relaxed text-zinc-400">
-              Covers hosting and unlocks the two features.
-            </p>
-
-            <button
-              type="button"
-              onClick={subscribe}
-              disabled={opening}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {opening ? "Opening checkout..." : "Become a supporter"}
-            </button>
-            <p className="mt-3 text-xs font-light text-zinc-500">Cancel anytime, access lasts until the period ends.</p>
+        <section aria-labelledby="compare-heading">
+          <h2 id="compare-heading" className="sr-only">
+            Free compared to supporter
+          </h2>
+          <div className="hidden grid-cols-[200px_1fr_1fr] gap-x-8 border-b border-zinc-800 pb-3 text-xs text-zinc-500 sm:grid">
+            <span>Feature</span>
+            <span>Free</span>
+            <span className="text-white">Supporter</span>
           </div>
-        </div>
+          <div>
+            {COMPARISON.map((row, index) => (
+              <FeatureRow key={row.feature} row={row} first={index === 0} />
+            ))}
+          </div>
+        </section>
 
-        <p className="mt-10 text-center text-sm font-light text-zinc-500 sm:mt-14">
+        <section
+          className="film-grain relative flex flex-wrap items-center justify-between gap-7 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60 px-8 py-8"
+          aria-live="polite"
+        >
+          <p className="flex items-baseline gap-x-2 gap-y-1 flex-wrap">
+            <span className="text-3xl font-semibold tracking-tight">9,99&nbsp;€</span>
+            <span className="text-sm font-light text-zinc-500">/ year, or 3&nbsp;€ / month</span>
+          </p>
+
+          <button
+            type="button"
+            onClick={subscribe}
+            disabled={opening}
+            className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {opening ? "Opening checkout..." : "Become a supporter"}
+          </button>
+        </section>
+
+        <p className="text-center text-sm font-light text-zinc-500">
           Questions about billing or cancelling? Answers in the{" "}
           <TransitionLink
             href="/faq"
@@ -168,7 +165,6 @@ export default function PricingPage() {
           </TransitionLink>
           , under Supporter.
         </p>
-
       </div>
 
       <Footer />
@@ -215,21 +211,25 @@ function ToastStack({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id
 
 function FeatureRow({ row, first }: { row: (typeof COMPARISON)[number]; first: boolean }) {
   return (
-    <>
-      <h3
-        className={`col-span-2 text-base font-medium text-zinc-200 sm:col-span-1 sm:border-b sm:border-zinc-900 sm:pb-8 ${
-          first ? "" : "border-t border-zinc-900 pt-8 sm:border-t-0 sm:pt-0"
-        }`}
-      >
-        {row.feature}
-      </h3>
-      <p className="text-sm font-light text-zinc-500 sm:border-b sm:border-zinc-900 sm:pb-8">{row.free}</p>
-      <p className="flex items-center gap-1.5 text-sm font-medium text-white sm:border-b sm:border-zinc-900 sm:pb-8">
-        <svg className="h-3.5 w-3.5 shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <div
+      className={`grid grid-cols-1 gap-2.5 py-5 sm:grid-cols-[200px_1fr_1fr] sm:items-center sm:gap-x-8 sm:gap-y-0 sm:border-b sm:border-zinc-900 sm:py-6 ${
+        first ? "" : "border-t border-zinc-900 sm:border-t-0"
+      }`}
+    >
+      <h3 className="text-base font-medium text-zinc-200">{row.feature}</h3>
+
+      <div className="flex items-start gap-3 text-sm font-light text-zinc-500 sm:block sm:whitespace-nowrap">
+        <span className="w-20 shrink-0 text-xs text-zinc-600 sm:hidden">Free</span>
+        <span>{row.free}</span>
+      </div>
+
+      <div className="flex items-start gap-3 text-sm font-medium text-white sm:flex sm:items-center sm:gap-1.5 sm:whitespace-nowrap">
+        <span className="w-20 shrink-0 text-xs font-light text-zinc-600 sm:hidden">Supporter</span>
+        <svg className="hidden h-3.5 w-3.5 shrink-0 text-zinc-400 sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
         </svg>
-        {row.supporter}
-      </p>
-    </>
+        <span>{row.supporter}</span>
+      </div>
+    </div>
   );
 }
