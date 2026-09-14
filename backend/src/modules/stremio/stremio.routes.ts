@@ -3,6 +3,7 @@ import {
   findUserById,
   findUserByLetterboxdUsername,
   getUserPreferences,
+  markInstalled,
   type UserPreferences,
 } from '../../db/repositories/user.repository.js';
 import {
@@ -423,7 +424,8 @@ export async function stremioRoutes(app: FastifyInstance) {
           preferences,
           orphanListNames,
         );
-        trackEvent('install', userId);
+        trackEvent('manifest_view', userId, { tier: 2 });
+        if (markInstalled(userId)) trackEvent('install', userId);
         logger.info(
           { username: user.letterboxd_username, listsCount: lists.length, hasPreferences: !!preferences },
           'Dynamic manifest generated',
