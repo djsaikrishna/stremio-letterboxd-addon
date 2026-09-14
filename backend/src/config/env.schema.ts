@@ -7,7 +7,7 @@ export const envSchema = z.object({
   ENABLE_HTTPS: z
     .string()
     .transform((val) => val === 'true')
-    .default('false'),
+    .default(false),
   HTTPS_CERT_PATH: z.string().default('./certs/localhost-cert.pem'),
   HTTPS_KEY_PATH: z.string().default('./certs/localhost-key.pem'),
 
