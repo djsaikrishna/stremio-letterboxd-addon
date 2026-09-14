@@ -36,6 +36,7 @@ export interface User {
   token_expires_at: string | null;
   preferences: string | null;
   session_epoch: number;
+  installed_at: string | null;
 }
 
 export interface CreateUserInput {
@@ -206,6 +207,12 @@ export function revokeUserSessions(id: string): void {
   const db = getDb();
   db.prepare("UPDATE users SET session_epoch = ?, updated_at = datetime('now') WHERE id = ?")
     .run(Math.floor(Date.now() / 1000), id);
+}
+
+/** True only on the first call per user, so constant manifest refetches count as a single install. */
+export function markInstalled(id: string): boolean {
+  const db = getDb();
+  return db.prepare("UPDATE users SET installed_at = datetime('now') WHERE id = ? AND installed_at IS NULL").run(id).changes === 1;
 }
 
 export function updateUserPreferences(
