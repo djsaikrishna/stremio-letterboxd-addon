@@ -45,6 +45,36 @@ describe('cache (LRU wrapper)', () => {
 
     expect(cache.get('key1')).toBeUndefined();
   });
+
+  describe('updateAgeOnGet', () => {
+    it('does not reset the TTL on read by default (#60 regression guard)', async () => {
+      const cache = createCache<string>({ maxSize: 10, ttl: 100 });
+      cache.set('key1', 'value1');
+
+      await new Promise((r) => setTimeout(r, 60));
+      expect(cache.get('key1')).toBe('value1'); // still alive, but read does not extend it
+
+      await new Promise((r) => setTimeout(r, 60)); // 120ms since set, past the 100ms ttl
+      expect(cache.get('key1')).toBeUndefined();
+    });
+
+    it('resets the TTL on every read when enabled, keeping an actively-paginated entry alive', async () => {
+      const cache = createCache<string>({ maxSize: 10, ttl: 100, updateAgeOnGet: true });
+      cache.set('key1', 'value1');
+
+      // Two reads spaced 60ms apart (< ttl) each refresh the age, so the entry survives
+      // well past the original 100ms window as long as it keeps being read.
+      await new Promise((r) => setTimeout(r, 60));
+      expect(cache.get('key1')).toBe('value1');
+
+      await new Promise((r) => setTimeout(r, 60)); // 120ms since set, but only 60ms since last read
+      expect(cache.get('key1')).toBe('value1');
+
+      // Once reads stop for a full ttl window, it does expire.
+      await new Promise((r) => setTimeout(r, 150));
+      expect(cache.get('key1')).toBeUndefined();
+    });
+  });
 });
 
 describe('Coalescer', () => {
