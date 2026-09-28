@@ -47,31 +47,33 @@ describe('cache (LRU wrapper)', () => {
   });
 
   describe('updateAgeOnGet', () => {
+    // Wide margins on purpose: this suite runs 51 test files in parallel workers,
+    // and tight timing windows (seen with 60/100ms) flake under that scheduling load.
     it('does not reset the TTL on read by default (#60 regression guard)', async () => {
-      const cache = createCache<string>({ maxSize: 10, ttl: 100 });
+      const cache = createCache<string>({ maxSize: 10, ttl: 300 });
       cache.set('key1', 'value1');
 
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 150));
       expect(cache.get('key1')).toBe('value1'); // still alive, but read does not extend it
 
-      await new Promise((r) => setTimeout(r, 60)); // 120ms since set, past the 100ms ttl
+      await new Promise((r) => setTimeout(r, 300)); // 450ms since set, past the 300ms ttl
       expect(cache.get('key1')).toBeUndefined();
     });
 
     it('resets the TTL on every read when enabled, keeping an actively-paginated entry alive', async () => {
-      const cache = createCache<string>({ maxSize: 10, ttl: 100, updateAgeOnGet: true });
+      const cache = createCache<string>({ maxSize: 10, ttl: 300, updateAgeOnGet: true });
       cache.set('key1', 'value1');
 
-      // Two reads spaced 60ms apart (< ttl) each refresh the age, so the entry survives
-      // well past the original 100ms window as long as it keeps being read.
-      await new Promise((r) => setTimeout(r, 60));
+      // Two reads spaced 150ms apart (< ttl) each refresh the age, so the entry survives
+      // well past the original 300ms window as long as it keeps being read.
+      await new Promise((r) => setTimeout(r, 150));
       expect(cache.get('key1')).toBe('value1');
 
-      await new Promise((r) => setTimeout(r, 60)); // 120ms since set, but only 60ms since last read
+      await new Promise((r) => setTimeout(r, 150)); // 300ms since set, but only 150ms since last read
       expect(cache.get('key1')).toBe('value1');
 
       // Once reads stop for a full ttl window, it does expire.
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 400));
       expect(cache.get('key1')).toBeUndefined();
     });
   });
