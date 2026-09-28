@@ -37,6 +37,12 @@ async function curlFetch(url: string, accept = 'text/html,*/*;q=0.8'): Promise<s
 const BOXD_SHORTLINK_REGEX = /https?:\/\/boxd\.it\/([A-Za-z0-9]+)/;
 const LIST_SHORTLINK_TAG_REGEX = /<link[^>]+rel="shortlink"[^>]+href="https?:\/\/boxd\.it\/([A-Za-z0-9]+)"/;
 const LIST_SHORTLINK_TAG_ALT_REGEX = /href="https?:\/\/boxd\.it\/([A-Za-z0-9]+)"[^>]*rel="shortlink"/;
+// Current markup (2026-09): the list sidebar's "like/share" widget carries
+// the list's own LID. Both attributes live on the same <section>, so either
+// one alone is a reliable source of truth for the page's own list.
+const LIST_IDENTIFIER_REGEX = /data-list-identifier='([^']+)'/;
+const LIST_BOXDIT_URL_REGEX = /data-list-boxdit-url="https?:\/\/boxd\.it\/([A-Za-z0-9]+)"/;
+// Legacy markup, kept in case Letterboxd reverts or A/B tests the page.
 const LIST_LIKEABLE_IDENTIFIER_REGEX =
   /data-likeable-identifier='([^']+)'/;
 
@@ -54,17 +60,31 @@ export function extractBoxdShortlinkId(html: string): string | null {
   return html.match(BOXD_SHORTLINK_REGEX)?.[1] ?? null;
 }
 
+function decodeHtmlAttrEntities(value: string): string {
+  return value.replace(/&#034;/g, '"').replace(/&quot;/g, '"');
+}
+
 export function extractListIdFromListPage(html: string): string | null {
   const shortlinkId =
     html.match(LIST_SHORTLINK_TAG_REGEX)?.[1] ??
     html.match(LIST_SHORTLINK_TAG_ALT_REGEX)?.[1];
   if (shortlinkId) return shortlinkId;
 
+  const identifierMatch = html.match(LIST_IDENTIFIER_REGEX);
+  if (identifierMatch) {
+    const decoded = decodeHtmlAttrEntities(identifierMatch[1]!);
+    try {
+      const parsed = JSON.parse(decoded) as { type?: string; lid?: string };
+      if (parsed.type === 'list' && parsed.lid) return parsed.lid;
+    } catch { /* ignore parse errors */ }
+  }
+
+  const boxditUrlMatch = html.match(LIST_BOXDIT_URL_REGEX);
+  if (boxditUrlMatch) return boxditUrlMatch[1]!;
+
   const likeableMatch = html.match(LIST_LIKEABLE_IDENTIFIER_REGEX);
   if (likeableMatch) {
-    const decoded = likeableMatch[1]!
-      .replace(/&#034;/g, '"')
-      .replace(/&quot;/g, '"');
+    const decoded = decodeHtmlAttrEntities(likeableMatch[1]!);
     try {
       const parsed = JSON.parse(decoded) as { type?: string; lid?: string };
       if (parsed.type === 'list' && parsed.lid) return parsed.lid;

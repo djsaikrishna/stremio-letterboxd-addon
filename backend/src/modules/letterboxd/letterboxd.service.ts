@@ -13,6 +13,7 @@ import { getFilmRatingData } from '../stremio/meta.service.js';
 import { createChildLogger } from '../../lib/logger.js';
 import { fetchPageHtml, extractListIdFromListPage } from '../../lib/html-scraper.js';
 import { callWithAppToken } from '../../lib/app-client.js';
+import { matchesSlug } from '../../lib/slug-match.js';
 
 const logger = createChildLogger('letterboxd-service');
 
@@ -203,34 +204,4 @@ export async function resolveExternalList(
     owner: member.displayName || member.username,
     filmCount: list.filmCount,
   };
-}
-
-function extractWords(text: string): string[] {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[‘’ʼ']/g, '')
-    .split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 0);
-}
-
-function wordsOverlap(nameWords: string[], slugWords: string[]): boolean {
-  const nameSet = new Set(nameWords);
-  const slugSet = new Set(slugWords);
-  const slugInName = slugWords.filter((w) => nameSet.has(w)).length;
-  const nameInSlug = nameWords.filter((w) => slugSet.has(w)).length;
-  return slugInName >= slugWords.length * 0.8
-      && nameInSlug >= nameWords.length * 0.6;
-}
-
-function matchesSlug(listName: string, urlSlug: string): boolean {
-  const nameWords = extractWords(listName);
-  const slugWords = urlSlug.split('-').filter((w) => w.length > 0);
-  if (wordsOverlap(nameWords, slugWords)) return true;
-  const stripped = urlSlug.replace(/-\d+$/, '');
-  if (stripped !== urlSlug) {
-    return wordsOverlap(nameWords, stripped.split('-').filter((w) => w.length > 0));
-  }
-  return false;
 }
