@@ -74,6 +74,7 @@ backend/certs/
 # Local config
 .claude/
 CLAUDE.md
+.agents/
 
 # Keys
 git-crypt-key*
