@@ -631,7 +631,7 @@ export async function stremioRoutes(app: FastifyInstance) {
       const tok = request.query.tok;
 
       if (!tok || !verifyAction(userId, filmId, action, tok)) {
-        return reply.status(403).send({ error: 'Forbidden' });
+        return sendHtml(reply, buildErrorPage('Forbidden'), 403);
       }
 
       const setValue = request.query.set === 'true';
@@ -708,7 +708,7 @@ export async function stremioRoutes(app: FastifyInstance) {
       const tok = request.query.tok;
 
       if (!tok || !verifyAction(userId, filmId, 'rate', tok)) {
-        return reply.status(403).send({ error: 'Forbidden' });
+        return sendHtml(reply, buildErrorPage('Forbidden'), 403);
       }
 
       const rawImdbId = request.query.imdb;
@@ -755,7 +755,7 @@ export async function stremioRoutes(app: FastifyInstance) {
       const tok = request.query.tok;
 
       if (!tok || !verifyAction(userId, filmId, 'rate', tok)) {
-        return reply.status(403).send({ error: 'Forbidden' });
+        return sendHtml(reply, buildErrorPage('Forbidden'), 403);
       }
 
       const { rating: ratingStr } = request.query;
