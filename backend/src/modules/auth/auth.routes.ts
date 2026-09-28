@@ -24,6 +24,7 @@ import {
   extractListIdFromListPage,
 } from '../../lib/html-scraper.js';
 import { contributorNameCache, contributorCacheKey, CONTRIBUTOR_KIND_SHORT } from '../../lib/cache.js';
+import { matchesSlug } from '../../lib/slug-match.js';
 import {
   searchMemberByUsername as rawSearchMemberByUsername,
   getMember as rawGetMember,
@@ -50,45 +51,6 @@ async function resolveMemberByUsername(username: string) {
   }
 
   return callWithAppToken((token) => rawSearchMemberByUsername(token, username));
-}
-
-/** Extract normalized words from text (strips diacritics + apostrophes) */
-function extractWords(text: string): string[] {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[''ʼ]/g, '')
-    .split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 0);
-}
-
-function wordsOverlap(nameWords: string[], slugWords: string[]): boolean {
-  const nameSet = new Set(nameWords);
-  const slugSet = new Set(slugWords);
-
-  const slugInName = slugWords.filter((w) => nameSet.has(w)).length;
-  const nameInSlug = nameWords.filter((w) => slugSet.has(w)).length;
-
-  return slugInName >= slugWords.length * 0.8
-      && nameInSlug >= nameWords.length * 0.6;
-}
-
-/** Match a list name against a URL slug using bidirectional word overlap */
-function matchesSlug(listName: string, urlSlug: string): boolean {
-  const nameWords = extractWords(listName);
-  const slugWords = urlSlug.split('-').filter((w) => w.length > 0);
-
-  // Try full slug first (handles "top-10", "apollo-13", etc.)
-  if (wordsOverlap(nameWords, slugWords)) return true;
-
-  // Retry without trailing number — Letterboxd dedup suffix ("monster-high-1")
-  const stripped = urlSlug.replace(/-\d+$/, '');
-  if (stripped !== urlSlug) {
-    return wordsOverlap(nameWords, stripped.split('-').filter((w) => w.length > 0));
-  }
-
-  return false;
 }
 
 export async function authRoutes(app: FastifyInstance) {

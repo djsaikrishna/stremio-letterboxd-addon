@@ -242,4 +242,23 @@ describe('resolveExternalList', () => {
     const result = await resolveExternalList(mockClient, 'testuser', 'my-curated-list');
     expect(result?.id).toBe('list-fallback');
   });
+
+  it('stratégie 2 : ne confond pas deux listes au nommage template très proche (#135)', async () => {
+    vi.mocked(htmlScraper.fetchPageHtml).mockResolvedValue(null);
+    mockClient.searchMemberByUsername = vi.fn().mockResolvedValue({
+      id: 'member-1',
+      username: 'official',
+      displayName: 'Official Lists',
+    });
+    mockClient.searchLists = vi.fn().mockResolvedValue({
+      items: [
+        { id: 'wrong-id', name: 'Top 50 Horror Films by Women Directors', filmCount: 50 },
+        { id: 'right-id', name: 'Top 250 Films by Women Directors', filmCount: 250 },
+      ],
+      cursor: undefined,
+    });
+
+    const result = await resolveExternalList(mockClient, 'official', 'top-250-films-by-women-directors');
+    expect(result?.id).toBe('right-id');
+  });
 });
