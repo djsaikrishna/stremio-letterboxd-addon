@@ -4,6 +4,8 @@ import { cacheConfig } from '../config/index.js';
 export interface CacheOptions {
   maxSize?: number;
   ttl?: number;
+  /** Reset the TTL on every cache read instead of only on write (lru-cache's updateAgeOnGet). */
+  updateAgeOnGet?: boolean;
 }
 
 export class Coalescer<T> {
@@ -25,6 +27,7 @@ export function createCache<T extends NonNullable<unknown>>(options: CacheOption
   return new LRUCache<string, T>({
     max: options.maxSize ?? cacheConfig.maxSize,
     ttl: options.ttl ?? cacheConfig.filmTtl,
+    updateAgeOnGet: options.updateAgeOnGet ?? false,
   });
 }
 
@@ -197,6 +200,14 @@ export const userClientCache = createCache<{ client: AuthenticatedClient; expire
 export const userCatalogCache = createCache<{ metas: StremioMeta[] }>({
   maxSize: 50,
   ttl: 5 * 60 * 1000, // 5min — invalidateUserCatalogs() covers manual changes
+  // Diary/Friends are live feeds fetched whole and paginated from one cached snapshot
+  // (see fetchDiaryCatalog / fetchFriendsCatalog). Without this, a client that takes
+  // more than 5min to page through the full list forces a mid-pagination re-fetch,
+  // and since the underlying feed keeps changing, the new snapshot no longer lines up
+  // with the page boundaries already served — items get duplicated/skipped at the seam
+  // (#60). Resetting the TTL on every read keeps one snapshot alive for as long as the
+  // client keeps actively paginating, and only expires after real inactivity.
+  updateAgeOnGet: true,
 });
 
 // Watched IMDb IDs per user (for "Not Watched" filter)
