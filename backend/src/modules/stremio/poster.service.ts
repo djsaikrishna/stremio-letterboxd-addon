@@ -5,6 +5,23 @@ import { assertAllowedUrl } from '../../lib/url-allowlist.js';
 
 const logger = createChildLogger('poster-service');
 
+// Exact hosts (no wildcard) that may be proxied in addition to the shared allowlist:
+// Cinemeta poster CDN (Tier 2/3 meta) and TMDB images (adult-poster fix).
+export const POSTER_EXTRA_HOSTS: ReadonlySet<string> = new Set([
+  'images.metahub.space',
+  'image.tmdb.org',
+]);
+
+/** Single source of truth for the /poster route and generateRatedPoster. */
+export function isAllowedPosterUrl(url: string): boolean {
+  try {
+    assertAllowedUrl(url, { extraHosts: POSTER_EXTRA_HOSTS });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Semaphore to limit concurrent poster image fetches (CDN rate-limiting protection)
 const MAX_CONCURRENT_FETCHES = 8;
 let activeFetches = 0;
@@ -40,7 +57,7 @@ export async function generateRatedPoster(
 
   logger.debug({ posterUrl, rating, queueSize: fetchQueue.length }, 'Generating rated poster');
 
-  const safePosterUrl = assertAllowedUrl(posterUrl);
+  const safePosterUrl = assertAllowedUrl(posterUrl, { extraHosts: POSTER_EXTRA_HOSTS });
 
   let response!: Response;
   await acquireFetchSlot();

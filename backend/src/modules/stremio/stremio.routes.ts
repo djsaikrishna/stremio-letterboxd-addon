@@ -24,7 +24,7 @@ import {
   getFilmRatingData,
   getPopularReviewsText,
 } from './meta.service.js';
-import { generateRatedPoster } from './poster.service.js';
+import { generateRatedPoster, isAllowedPosterUrl } from './poster.service.js';
 import { createChildLogger } from '../../lib/logger.js';
 import {
   imdbToLetterboxdCache,
@@ -178,17 +178,8 @@ export async function stremioRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: 'Rating must be between 0 and 5' });
       }
 
-      try {
-        const parsed = new URL(url);
-        const allowed =
-          parsed.hostname.endsWith('.ltrbxd.com') ||
-          parsed.hostname.endsWith('.letterboxd.com') ||
-          parsed.hostname === 'image.tmdb.org';
-        if (!allowed) {
-          return reply.status(400).send({ error: 'Invalid poster URL' });
-        }
-      } catch {
-        return reply.status(400).send({ error: 'Invalid URL' });
+      if (!isAllowedPosterUrl(url)) {
+        return reply.status(400).send({ error: 'Invalid poster URL' });
       }
 
       try {
@@ -395,6 +386,21 @@ export async function stremioRoutes(app: FastifyInstance) {
 
       return { meta };
     },
+  );
+
+  // Some clients append manifest.json twice. Redirect to the canonical path rebuilt
+  // from the (re-encoded) param only, never from the raw URL: same-origin, no
+  // generic path normalisation.
+  app.get(
+    '/:config/manifest.json/manifest.json',
+    async (request: FastifyRequest<{ Params: { config: string } }>, reply) =>
+      reply.redirect(`/${encodeURIComponent(request.params.config)}/manifest.json`, 308),
+  );
+
+  app.get(
+    '/stremio/:userId/manifest.json/manifest.json',
+    async (request: FastifyRequest<{ Params: { userId: string } }>, reply) =>
+      reply.redirect(`/stremio/${encodeURIComponent(request.params.userId)}/manifest.json`, 308),
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
