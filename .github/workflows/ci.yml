@@ -39,6 +39,10 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+
       - name: Run tests
         working-directory: backend
         run: npm run test:run
@@ -63,3 +67,12 @@ jobs:
 
       - name: Security audit
         run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
