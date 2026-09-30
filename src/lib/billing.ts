@@ -1,4 +1,5 @@
 import { authHeaders } from "./session-token";
+import { track } from "./analytics";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.stremboxd.com";
 
@@ -83,8 +84,11 @@ export async function openCheckout(onSuccess: () => void): Promise<void> {
     clearTimeout(timeoutId);
   }
 
+  track("checkout_opened");
+
   checkout.addEventListener("success", (event) => {
     event.preventDefault();
+    track("checkout_completed");
     // We navigate ourselves instead of following Polar's redirect, so we
     // must also do the teardown that handleSuccess() would otherwise have
     // done: close the embed (removes the iframe, message listener, and the

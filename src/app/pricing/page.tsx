@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import TransitionLink from "../components/TransitionLink";
 import Footer from "../components/Footer";
 import { openCheckout, CheckoutError } from "../../lib/billing";
+import { track } from "../../lib/analytics";
 
 const COMPARISON = [
   {
@@ -67,13 +68,16 @@ export default function PricingPage() {
   };
 
   const subscribe = async () => {
+    track("pricing_subscribe_clicked");
     setOpening(true);
     try {
       // Same tab, same JS context: /configure's poll picks up the in-memory
       // session and applies the supporter session once Polar confirms.
       await openCheckout(() => router.push("/configure?checkout=success"));
     } catch (err) {
-      if (err instanceof CheckoutError && err.status === 401) {
+      const notLoggedIn = err instanceof CheckoutError && err.status === 401;
+      track("checkout_failed", { reason: notLoggedIn ? "not_logged_in" : "error" });
+      if (notLoggedIn) {
         showToast(
           <>
             You&apos;re not logged in.{" "}

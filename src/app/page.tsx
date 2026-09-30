@@ -52,6 +52,7 @@ export default function Home() {
             <TransitionLink
               href="/pricing"
               direction="up"
+              trackTarget="pricing"
               className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-zinc-200"
             >
               Pricing
@@ -63,6 +64,7 @@ export default function Home() {
             <TransitionLink
               href="/faq"
               direction="up"
+              trackTarget="faq"
               className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-zinc-200"
             >
               FAQ
@@ -76,6 +78,7 @@ export default function Home() {
         <TransitionLink
           href="/configure"
           direction="up"
+          trackTarget="configure"
           className="flex h-12 w-12 items-center justify-center rounded-full bg-white transition-all hover:scale-110 hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
           ariaLabel="Continue to configuration"
         >
