@@ -32,6 +32,22 @@ export const envSchema = z.object({
 
   DATABASE_PATH: z.string().default('./data/stremio-letterboxd.db'),
 
+  // Scheduled SQLite snapshots. Remote upload is a no-op unless the S3 vars are set.
+  BACKUP_ENABLED: z
+    .string()
+    .transform((val) => val !== 'false')
+    .default(true),
+  BACKUP_INTERVAL_HOURS: z.coerce.number().positive().default(24),
+  BACKUP_INITIAL_DELAY_MINUTES: z.coerce.number().min(0).default(10),
+  BACKUP_KEEP: z.coerce.number().int().min(1).default(3),
+  BACKUP_DIR: z.string().min(1).optional(),
+  BACKUP_S3_ENDPOINT: z.string().optional(),
+  BACKUP_S3_BUCKET: z.string().optional(),
+  BACKUP_S3_REGION: z.string().default('auto'),
+  BACKUP_S3_ACCESS_KEY_ID: z.string().optional(),
+  BACKUP_S3_SECRET_ACCESS_KEY: z.string().optional(),
+  BACKUP_S3_PREFIX: z.string().default('stremboxd/'),
+
   CACHE_MAX_SIZE: z.coerce.number().default(1000),
   CACHE_FILM_TTL: z.coerce.number().default(3600),
   CACHE_WATCHLIST_TTL: z.coerce.number().default(300),
