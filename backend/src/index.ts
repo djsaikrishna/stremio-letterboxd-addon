@@ -2,7 +2,8 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { configure } from '@esp4ce/letterboxd-client';
 import { buildApp } from './app.js';
-import { initDb, closeDb } from './db/index.js';
+import { initDb, closeDb, getDb } from './db/index.js';
+import { backupOptionsFromEnv, startBackupScheduler } from './lib/backup.js';
 import { config, catalogConfig } from './config/index.js';
 import { logger, createChildLogger } from './lib/logger.js';
 import { cleanupOldEvents } from './lib/metrics.js';
@@ -56,8 +57,11 @@ async function main() {
     logger.info('HTTP mode (no HTTPS)');
   }
 
+  const stopBackups = startBackupScheduler(getDb, backupOptionsFromEnv(config));
+
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Received shutdown signal');
+    stopBackups();
     await app.close();
     await shutdownPosthog();
     closeDb();

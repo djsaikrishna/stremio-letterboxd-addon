@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useId, type MouseEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Footer from "../components/Footer";
 import { SECTIONS } from "./data";
@@ -100,7 +101,7 @@ export default function FAQ() {
   return (
     <>
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0a0a] text-white">
-      <a
+      <Link
         href="/"
         onClick={goBack}
         className="absolute left-4 top-4 z-10 text-sm font-light text-zinc-500 transition-colors hover:text-zinc-200 sm:left-6 sm:top-6"
@@ -114,7 +115,7 @@ export default function FAQ() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Back
-      </a>
+      </Link>
 
       <div className="mx-auto max-w-4xl px-4 pt-16 pb-12 sm:pt-24 sm:pb-20">
         <h1 className="mb-10 text-3xl font-semibold tracking-tight sm:text-4xl">FAQ</h1>

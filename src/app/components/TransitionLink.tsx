@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, type MouseEvent, type ReactNode } from "react";
+import { track } from "../../lib/analytics";
 
 interface TransitionLinkProps {
   href: string;
@@ -10,6 +11,8 @@ interface TransitionLinkProps {
   className?: string;
   children: ReactNode;
   ariaLabel?: string;
+  /** Serializable so server components can set it; emits landing_cta_clicked. */
+  trackTarget?: "configure" | "pricing" | "faq";
 }
 
 /**
@@ -22,12 +25,15 @@ export default function TransitionLink({
   className,
   children,
   ariaLabel,
+  trackTarget,
 }: TransitionLinkProps) {
   const router = useRouter();
 
   const handleClick = useCallback(
     (e: MouseEvent<HTMLAnchorElement>) => {
       e.preventDefault();
+
+      if (trackTarget) track("landing_cta_clicked", { target: trackTarget });
 
       document.documentElement.dataset.transition = direction;
 
@@ -39,7 +45,7 @@ export default function TransitionLink({
         router.push(href);
       }
     },
-    [direction, href, router]
+    [direction, href, router, trackTarget]
   );
 
   return (

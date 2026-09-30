@@ -9,6 +9,7 @@ import { Toggle } from "./components/primitives";
 import type { UserPreferences } from "../../types/preferences";
 import { readAuthKey, syncAddon, type SyncResult } from "../../lib/stremio-sync";
 import { readSession as readNuvioSession, syncAddon as syncNuvioAddon } from "../../lib/nuvio-sync";
+import { track } from "../../lib/analytics";
 import { authHeaders, getInMemorySessionToken, setInMemorySessionToken } from "../../lib/session-token";
 
 const TOAST_DURATION = 3000;
@@ -539,6 +540,12 @@ function ConfigureInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (confirmingCheckout) track("checkout_returned");
+    // Mount-only: one event per landing on ?checkout=success.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // After a checkout (?checkout=success), poll until Polar reports the
   // subscription instead of showing a stale unpaid UI.
   useEffect(() => {
@@ -571,6 +578,7 @@ function ConfigureInner() {
               // pre-payment snapshot taken when this page first loaded.
               if (!cancelled) {
                 applyLoginResult(data);
+                track("checkout_confirmed", { entitled: true });
                 setConfirmingCheckout(false);
                 showSuccessToast("Payment confirmed - thanks for your support!");
               }
@@ -611,6 +619,7 @@ function ConfigureInner() {
       return;
     }
 
+    track("configure_mode_chosen", { mode: password ? "full" : "public" });
     setIsLoading(true);
     setForceMainForm(false);
     // Reset prior session results so a failed retry cannot show stale success state.
@@ -639,6 +648,7 @@ function ConfigureInner() {
         }
 
         applyLoginResult(data as LoginResponse, true);
+        track("login_succeeded", { method: "password", entitled: (data as LoginResponse).entitled, remember_me: rememberMe });
       } else {
         // Public flow (username only)
         const response = await fetch(`${BACKEND_URL}/auth/validate-username`, {
@@ -700,6 +710,7 @@ function ConfigureInner() {
       setShow2FA(false);
       setTotpCode("");
       applyLoginResult(data as LoginResponse, true);
+      track("login_succeeded", { method: "totp", entitled: (data as LoginResponse).entitled, remember_me: rememberMe });
     } catch (err) {
       showErrorToast(err instanceof Error ? err.message : "Invalid code");
     } finally {
@@ -1034,6 +1045,7 @@ function ConfigureInner() {
   };
 
   const handleInstallStremio = () => {
+    track("install_clicked", { mode: result ? "full" : "public", reinstall: syncOutcome === "synced" });
     const url = result?.manifestUrl || generatedManifestUrl;
     if (url) {
       const stremioUrl = `stremio://${url.replace(/^https?:\/\//, "")}`;
