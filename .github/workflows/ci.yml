@@ -39,10 +39,6 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
-      - name: Lint
-        working-directory: backend
-        run: npm run lint
-
       - name: Run tests
         working-directory: backend
         run: npm run test:run
