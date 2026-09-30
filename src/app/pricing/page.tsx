@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type MouseEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import TransitionLink from "../components/TransitionLink";
 import Footer from "../components/Footer";
@@ -97,7 +98,7 @@ export default function PricingPage() {
 
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0a0a] text-white">
-      <a
+      <Link
         href="/"
         onClick={goBack}
         className="absolute left-4 top-4 z-10 text-sm font-light text-zinc-500 transition-colors hover:text-zinc-200 sm:left-6 sm:top-6"
@@ -106,7 +107,7 @@ export default function PricingPage() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Back
-      </a>
+      </Link>
 
       <div className="mx-auto flex min-h-screen w-full max-w-[980px] flex-col justify-center gap-12 px-6 py-16 sm:px-10">
         <section>
